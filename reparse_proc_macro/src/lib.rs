@@ -56,14 +56,19 @@ fn impl_from_str_body(re: Expr, ds: &DeriveInput)->TokenStream{
     quote!{
         reparse::lazy_static::lazy_static!{
             static ref RE: reparse::regex::Regex = {
-                reparse::regex::Regex::new(
-                    &format!(#re2, #(#names=format!("({})", <#types as reparse::ParsePrimitive>::regex_str())),*)
-                ).unwrap()
+                let re_str = &format!(#re2, #(#names=format!("({})", <#types as reparse::ParsePrimitive>::regex_str())),*);
+                reparse::regex::Regex::new(re_str)
+                    .unwrap_or_else(|x| panic!("Cannot compile regex {:?}", ))
             };
         }
         let captures = RE.captures(input_str).unwrap();
         let mut i=0;
-        #(let #names2 = captures.get({i += 1; i}).unwrap().as_str().parse::<#types2>().unwrap();)*
+        #(
+            let #names2 = captures.get({i += 1; i})
+                .unwrap_or_else(|| panic!("Capture group with id={} not found. {:?}", i, captures))
+                .as_str().parse::<#types2>()
+                .unwrap_or_else(|x| panic!("Cannot parse {:?}", x));
+        )*
         Ok(Self{
             #(#names3,)*
             //..Default::default()
@@ -100,16 +105,20 @@ fn arguments(format_string: &str)->HashSet<String>{
     let mut curly_bracket_stack = vec![];
     let mut map = HashSet::new();
 
-    let mut iter = format_string.char_indices();
+    let mut iter = format_string.char_indices().peekable();
     loop{
         match iter.next(){
             Some((i, c)) if c == '{' => {
-                curly_bracket_stack.push(i + c.len_utf8());
+                if iter.peek().map(|(_, c)| *c) != Some('{'){
+                    curly_bracket_stack.push(i + c.len_utf8());
+                }
             },
             Some((i, c)) if c == '}' => {
-                let start = curly_bracket_stack.pop().unwrap();
-                let end = i;
-                map.insert(format_string.get(start..end).unwrap().to_string());
+                if let Some(start) = curly_bracket_stack.pop(){
+                    let end = i;
+                    let substr = format_string.get(start..end).unwrap().to_string();
+                    map.insert(substr);
+                }
             },
             Some(_) => {},
             None => {break;}
