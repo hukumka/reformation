@@ -7,3 +7,5 @@ edition = "2018"
 [dependencies]
 regex = "1.1.0"
 lazy_static = "1.2.0"
+
+reparse_proc_macro = {path="reparse_proc_macro", version="0.1.0"}

@@ -62,6 +62,7 @@
 //! }
 //! ```
 
+pub use reparse_proc_macro;
 
 use std::fmt;
 pub use regex;
@@ -109,9 +110,9 @@ group_impl_parse_primitive!{r"(?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?", f3
 group_impl_parse_primitive!{r".*", String}
 
 
+
 /// Creates function for parsing tuple of values from
 /// strings corresponding to given template.
-
 #[macro_export]
 macro_rules! create_parse_fn{
     ($name: ident, $re: expr, $($res: ty),*) => {
@@ -183,9 +184,9 @@ mod tests{
     }
 
     fn check_float_capture(r: &regex::Regex, s: &str)->bool{
-        let c = r.captures(s).map(|x|{
+         r.captures(s).map(|c|{
             c.len() == 2 && c.get(1).map(|x| x.as_str()) == Some(s)
-        }).unwrap_or(false);
+        }).unwrap_or(false)
     }
 
 }
