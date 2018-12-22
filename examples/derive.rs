@@ -1,6 +1,6 @@
 extern crate reparse;
 
-use reparse::reparse_proc_macro::regex_parse;
+use reparse::regex_parse;
 
 #[regex_parse(r"Vec\{{{x}, {y}, {z}\}}")]
 #[derive(Debug)]

@@ -49,15 +49,18 @@ fn impl_from_str_body(re: Expr, ds: &DeriveInput)->TokenStream{
         .filter(|(ident, _ty)| args.contains(&ident.to_string()))
         .unzip();
 
-    let names2 = names.clone();
-    let types2 = types.clone();
-    let names3 = names.clone();
+    // hack over unability of quote to use same variable multiple times
+    let types1 = &types;
+    let names1 = &names;
+    let names2 = &names;
+    let types2 = &types;
+    let names3 = &names;
 
     quote!{
-        reparse::lazy_static::lazy_static!{
-            static ref RE: reparse::regex::Regex = {
-                let re_str = &format!(#re2, #(#names=format!("({})", <#types as reparse::ParsePrimitive>::regex_str())),*);
-                reparse::regex::Regex::new(re_str)
+        reparse::lazy_static!{
+            static ref RE: reparse::Regex = {
+                let re_str = &format!(#re2, #(#names1=format!("({})", <#types1 as reparse::ParsePrimitive>::regex_str())),*);
+                reparse::Regex::new(re_str)
                     .unwrap_or_else(|x| panic!("Cannot compile regex {:?}", ))
             };
         }
@@ -101,6 +104,7 @@ fn get_regex_str(re: Expr)->String{
 }
 
 
+/// parse which fields present in format string
 fn arguments(format_string: &str)->HashSet<String>{
     let mut curly_bracket_stack = vec![];
     let mut map = HashSet::new();

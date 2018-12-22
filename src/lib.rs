@@ -1,6 +1,40 @@
 //! Simple macro to reduce boilerplate from parsing using regex captures.
 //!
-//! `create_parse_fn!{function_name, re, types..}`
+//! Provide two macros
+//!
+//! ### regex_parse
+//!
+//! Attribute implementing trait `FromStr` for given struct,
+//! using provided format string.
+//!
+//! ```
+//! use reparse::regex_parse;
+//!
+//! #[regex_parse(r"{year}-{month}-{day} {hour}:{minute}")]
+//! #[derive(Debug)]
+//! struct Date{
+//!     year: u16,
+//!     month: u8,
+//!     day: u8,
+//!     hour: u8,
+//!     minute: u8,
+//! }
+//!
+//! fn main(){
+//!     let date: Date = "2018-12-22 20:23".parse().unwrap();
+//!
+//!     assert_eq!(date.year, 2018);
+//!     assert_eq!(date.month, 12);
+//!     assert_eq!(date.day, 22);
+//!     assert_eq!(date.hour, 20);
+//!     assert_eq!(date.minute, 23);
+//! }
+//! ```
+//!
+//!
+//! ## create_parse_fn
+//!
+//! usage: `create_parse_fn!{function_name, re, types..}`
 //!
 //! where:
 //! + function_name -- Name of function to be created.
@@ -15,7 +49,6 @@
 //!     + floating point numbers: f32, f64,
 //!     + String
 //!
-//! ## Usage examples
 //! ```
 //! use reparse::create_parse_fn;
 //!
@@ -62,11 +95,11 @@
 //! }
 //! ```
 
-pub use reparse_proc_macro;
+pub use reparse_proc_macro::regex_parse;
 
 use std::fmt;
-pub use regex;
-pub use lazy_static;
+pub use regex::Regex;
+pub use lazy_static::lazy_static;
 use std::str::FromStr;
 
 
@@ -125,10 +158,10 @@ macro_rules! create_parse_fn{
             type OkType = ($($res),*);
 
             // create regex automation with captures for each argument
-            reparse::lazy_static::lazy_static!{
-                static ref REGEX: reparse::regex::Regex = {
+            reparse::lazy_static!{
+                static ref REGEX: reparse::Regex = {
                     let re_str = format!($re, $(create_parse_fn!(@ty_capture $res)),*);
-                    reparse::regex::Regex::new(&re_str).unwrap()
+                    reparse::Regex::new(&re_str).unwrap()
                 };
             }
 
