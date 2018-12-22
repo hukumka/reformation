@@ -10,7 +10,8 @@ extern crate proc_macro;
 use std::collections::HashSet;
 
 use proc_macro2::TokenStream;
-use syn::{DeriveInput, Data, Field};
+use syn::spanned::Spanned;
+use syn::{DeriveInput, Data, Field, Fields};
 use syn::{Expr, Lit};
 
 
@@ -18,18 +19,28 @@ use syn::{Expr, Lit};
 pub fn regex_parse(re: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream{
     let re = parse_macro_input!(re as Expr);
     let ds = parse_macro_input!(item as DeriveInput);
-    let from_str_token_stream = impl_from_str_body(re, &ds);
 
-    let name = &ds.ident;
+    let expanded = match impl_from_str_body(re, &ds){
+        Ok(from_str_token_stream) => {
+            let name = &ds.ident;
+            quote!{
+                #ds
 
-    let expanded = quote!{
-        #ds
+                impl std::str::FromStr for #name{
+                    type Err = Box<std::error::Error>;
 
-        impl std::str::FromStr for #name{
-            type Err = Box<std::error::Error>;
+                    fn from_str(input_str: &str)->Result<Self, Self::Err>{
+                        #from_str_token_stream
+                    }
+                }
+            }
+        },
+        Err(errors) => {
+            println!("{}", errors.to_string());
+            quote!{
+                #ds
 
-            fn from_str(input_str: &str)->Result<Self, Self::Err>{
-                #from_str_token_stream
+                #errors
             }
         }
     };
@@ -38,11 +49,10 @@ pub fn regex_parse(re: proc_macro::TokenStream, item: proc_macro::TokenStream) -
 }
 
 
-fn impl_from_str_body(re: Expr, ds: &DeriveInput)->TokenStream{
-    let re2 = re.clone();
-    let re_str = get_regex_str(re);
+fn impl_from_str_body(re: Expr, ds: &DeriveInput)->Result<TokenStream, TokenStream>{
+    let re_str = get_regex_str(&re)?;
     let args = arguments(&re_str);
-    let fields = get_fields(&ds);
+    let fields = get_fields(&ds)?;
 
     let (names, types): (Vec<_>, Vec<_>) = fields.iter()
         .map(|x| (x.ident.as_ref().unwrap(), &x.ty))
@@ -56,10 +66,10 @@ fn impl_from_str_body(re: Expr, ds: &DeriveInput)->TokenStream{
     let types2 = &types;
     let names3 = &names;
 
-    quote!{
+    let res = quote!{
         reparse::lazy_static!{
             static ref RE: reparse::Regex = {
-                let re_str = &format!(#re2, #(#names1=format!("({})", <#types1 as reparse::ParsePrimitive>::regex_str())),*);
+                let re_str = &format!(#re, #(#names1=format!("({})", <#types1 as reparse::ParsePrimitive>::regex_str())),*);
                 reparse::Regex::new(re_str)
                     .unwrap_or_else(|x| panic!("Cannot compile regex {:?}", ))
             };
@@ -74,32 +84,45 @@ fn impl_from_str_body(re: Expr, ds: &DeriveInput)->TokenStream{
         )*
         Ok(Self{
             #(#names3,)*
-            //..Default::default()
+        })
+    };
+
+    Ok(res)
+}
+
+
+fn get_fields(struct_: &DeriveInput)->Result<Vec<&Field>, TokenStream>{
+    if let Data::Struct(ref ds) = struct_.data{
+        let fields: Vec<_> = ds.fields.iter().collect();
+
+        if let Fields::Named(_) = ds.fields{
+            Ok(fields)
+        }else{
+            Err(quote_spanned!{ds.fields.span()=>
+                compile_error!{"regex_parse supports only structs with named fields."}
+            })
+        }
+    }else{
+        Err(quote_spanned!{struct_.span()=>
+            compile_error!{"regex_parse supports only structs."}
         })
     }
 }
 
 
-fn get_fields(struct_: &DeriveInput)->Vec<&Field>{
-    if let Data::Struct(ref ds) = struct_.data{
-        let fields: Vec<_> = ds.fields.iter().collect();
-        fields
+fn get_regex_str(re: &Expr)->Result<String, TokenStream>{
+    if let Expr::Lit(ref re) = re{
+        if let Lit::Str(ref s) = re.lit{
+            Ok(s.value())
+        }else{
+            Err(quote_spanned!{re.span()=>
+                compile_error!{"regex_parse argument must be string literal."}
+            })
+        }
     }else{
-        panic!("regex_parse macro support struct only variants.")
-    }
-}
-
-
-fn get_regex_str(re: Expr)->String{
-    let lit = if let Expr::Lit(re) = re{
-        re
-    }else{
-        panic!("regex_parse argument must be string literal.")
-    };
-    if let Lit::Str(s) = lit.lit{
-        s.value()
-    }else{
-        panic!("regex_parse argument must be string literal.")
+        Err(quote_spanned!{re.span()=>
+            compile_error!{"regex_parse argument must be string literal."}
+        })
     }
 }
 
