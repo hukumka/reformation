@@ -1,3 +1,68 @@
+//! Simple macro to reduce boilerplate from parsing using regex captures.
+//!
+//! `create_parse_fn!{function_name, re, types..}`
+//!
+//! where:
+//! + function_name -- Name of function to be created.
+//! + re -- Format string for matching arguments. Format string is regular
+//!     expression, preprocessed by macro, and rules simular to regexprs
+//!     applies to it. In order to macro work properly usage of capture
+//!     groups should be avoided. Non capturing `(:?groups)` are fine.
+//! + types.. -- sequence of types expected as function output. Each type must
+//!     implement trait ```ParsePrimitive```. Default implementors:
+//!     + unsigned integers: u8, u16, u32, u64, u128, usize
+//!     + signed integers: i8, i16, i16, i64, i128, isize
+//!     + floating point numbers: f32, f64,
+//!     + String
+//!
+//! ## Usage examples
+//! ```
+//! use reparse::create_parse_fn;
+//!
+//! // "\(" and "\)" are escaped, since they are special characters in
+//! // regular expression syntax
+//! create_parse_fn!{parse_vec, r"^Vec\({}, {}\)$", i32, i32}
+//!
+//!
+//! fn main(){
+//!     let (x, y) = parse_vec("Vec(-16, 8)").unwrap();
+//!     assert_eq!(x, -16i32);
+//!     assert_eq!(y, 8i32);
+//! }
+//! ```
+//!
+//! ```
+//! use reparse::create_parse_fn;
+//!
+//! // "\{{" and "\}}" is the way to use symbols {, } in format string,
+//! // since { is special symbol for formatting and also special symbol for
+//! // regular expressions, so it needs to be escaped twice.
+//! create_parse_fn!{parse_curly, r"^Vec\{{{}, {}, {}\}}$", i32, i32, usize}
+//!
+//! fn main(){
+//!     let (x, y, z) = parse_curly("Vec{-16, 8, 800}").unwrap();
+//!     assert_eq!(x, -16i32);
+//!     assert_eq!(y, 8i32);
+//!     assert_eq!(z, 800usize);
+//! }
+//!
+//! ```
+//!
+//! You can use features of regular expression
+//! ```
+//! use reparse::create_parse_fn;
+//!
+//! // Ignore spaces between coordinates
+//! create_parse_fn!{parse_vec, r"^Vec\({}, {}\)$", f32, f32}
+//!
+//! fn main(){
+//!     let (x, y) = parse_vec("Vec(-16, 8e-3)").unwrap();
+//!     assert_eq!(x, -16.0);
+//!     assert_eq!(y, 0.008);
+//! }
+//! ```
+
+
 use std::fmt;
 pub use regex;
 pub use lazy_static;
@@ -18,7 +83,9 @@ impl fmt::Display for NoRegexMatch{
 }
 
 
-pub trait ParsePrimitive: FromStr{
+pub trait ParsePrimitive: FromStr
+    where <Self as FromStr>::Err: std::error::Error
+{
     fn regex_str()->&'static str;
 }
 
@@ -38,8 +105,12 @@ macro_rules! group_impl_parse_primitive{
 
 group_impl_parse_primitive!{r"\d+", u8, u16, u32, u64, u128, usize}
 group_impl_parse_primitive!{r"[\+-]?\d+", i8, i16, i32, i64, i128, isize}
+group_impl_parse_primitive!{r"(?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?", f32, f64}
 group_impl_parse_primitive!{r".*", String}
 
+
+/// Creates function for parsing tuple of values from
+/// strings corresponding to given template.
 
 #[macro_export]
 macro_rules! create_parse_fn{
@@ -52,6 +123,7 @@ macro_rules! create_parse_fn{
         {
             type OkType = ($($res),*);
 
+            // create regex automation with captures for each argument
             reparse::lazy_static::lazy_static!{
                 static ref REGEX: reparse::regex::Regex = {
                     let re_str = format!($re, $(create_parse_fn!(@ty_capture $res)),*);
@@ -82,5 +154,38 @@ macro_rules! create_parse_fn{
 
 
 #[cfg(test)]
-mod tests {
+mod tests{
+    use super::*;
+
+    #[test]
+    fn test_float_parse(){
+        // test regular expression for floating point numbers
+        let re = regex::Regex::new(&format!("^({})$", f32::regex_str())).unwrap();
+        // positive
+        assert!(check_float_capture(&re, "10"));
+        assert!(check_float_capture(&re, "10.2"));
+        assert!(check_float_capture(&re, "10."));
+        assert!(check_float_capture(&re, "0.34"));
+        assert!(check_float_capture(&re, "00.34"));
+        assert!(check_float_capture(&re, ".34"));
+        assert!(check_float_capture(&re, ".34e2"));
+        assert!(check_float_capture(&re, ".34e+2"));
+        assert!(check_float_capture(&re, ".34e-2"));
+        assert!(check_float_capture(&re, "-0.34e-2"));
+        assert!(check_float_capture(&re, "5e-2"));
+        assert!(check_float_capture(&re, "5.e-2")); // should this pass?
+
+        // negative
+        assert!(! re.is_match("5.."));
+        assert!(! re.is_match("."));
+        assert!(! re.is_match("--4."));
+        assert!(! re.is_match("-.0"));
+    }
+
+    fn check_float_capture(r: &regex::Regex, s: &str)->bool{
+        let c = r.captures(s).map(|x|{
+            c.len() == 2 && c.get(1).map(|x| x.as_str()) == Some(s)
+        }).unwrap_or(false);
+    }
+
 }

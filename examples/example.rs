@@ -9,5 +9,5 @@ fn main(){
 create_parse_fn!{
     parse_datetime,
     r"^{}-{}-{} {}:{}$",
-    u16, u8, u8, u8, i8
+    u16, u8, u8, u8, u8
 }
