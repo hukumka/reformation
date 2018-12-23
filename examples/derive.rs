@@ -1,9 +1,9 @@
 extern crate reparse;
 
-use reparse::regex_parse;
+use reparse::prelude::*;
 
-#[regex_parse(r"Vec\{{{x}, {y}, {z}\}}")]
-#[derive(Debug)]
+#[derive(Debug, ReParse)]
+#[re_parse(r"Vec\{{{x}, {y}, {z}\}}")]
 struct Date{
     x: f32,
     y: f32,

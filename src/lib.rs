@@ -8,10 +8,10 @@
 //! using provided format string.
 //!
 //! ```
-//! use reparse::regex_parse;
+//! use reparse::prelude::*;
 //!
-//! #[regex_parse(r"{year}-{month}-{day} {hour}:{minute}")]
-//! #[derive(Debug)]
+//! #[derive(ReParse, Debug)]
+//! #[re_parse(r"{year}-{month}-{day} {hour}:{minute}")]
 //! struct Date{
 //!     year: u16,
 //!     month: u8,
@@ -95,13 +95,15 @@
 //! }
 //! ```
 
-pub use reparse_proc_macro::regex_parse;
+pub mod prelude{
+    pub use reparse_proc_macro::*;
+    pub use super::ReParse;
+}
 
 use std::fmt;
-pub use regex::Regex;
+use std::error::Error;
+pub use regex::{Regex, Captures};
 pub use lazy_static::lazy_static;
-use std::str::FromStr;
-
 
 #[derive(Debug)]
 pub struct NoRegexMatch{
@@ -116,12 +118,20 @@ impl fmt::Display for NoRegexMatch{
     }
 }
 
-
-pub trait ParsePrimitive: FromStr
-    where <Self as FromStr>::Err: std::error::Error
-{
+pub trait ReParse: Sized{
+    /// regular expression for matching this struct
     fn regex_str()->&'static str;
+
+    // Can be calculated from regex_str, but this method guaranties no
+    // recalculations each parse and does not make by hand implementing
+    // much more difficult, although MORE error prone.
+    /// number of used capture groups.
+    fn captures_count()->usize;
+
+    /// create instance of function from captures with given offset
+    fn from_captures(c: &Captures, offset: usize)->Result<Self, Box<Error>>;
 }
+
 
 macro_rules! group_impl_parse_primitive{
     ($re: expr, $($name: ty),*) => {
@@ -129,18 +139,27 @@ macro_rules! group_impl_parse_primitive{
     };
 
     (@single $re: expr, $name: ty) => {
-        impl ParsePrimitive for $name{
+        impl ReParse for $name{
             fn regex_str()->&'static str{
                 $re
+            }
+
+            fn captures_count()->usize{
+                1
+            }
+
+            fn from_captures(c: &Captures, offset: usize)->Result<Self, Box<std::error::Error>>{
+                let res = c.get(offset).unwrap().as_str().parse::<$name>()?;
+                Ok(res)
             }
         }
     };
 }
 
-group_impl_parse_primitive!{r"\d+", u8, u16, u32, u64, u128, usize}
-group_impl_parse_primitive!{r"[\+-]?\d+", i8, i16, i32, i64, i128, isize}
-group_impl_parse_primitive!{r"(?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?", f32, f64}
-group_impl_parse_primitive!{r".*", String}
+group_impl_parse_primitive!{r"(\d+)", u8, u16, u32, u64, u128, usize}
+group_impl_parse_primitive!{r"([\+-]?\d+)", i8, i16, i32, i64, i128, isize}
+group_impl_parse_primitive!{r"((?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?)", f32, f64}
+group_impl_parse_primitive!{r"(.*)", String}
 
 
 
@@ -160,7 +179,7 @@ macro_rules! create_parse_fn{
             // create regex automation with captures for each argument
             reparse::lazy_static!{
                 static ref REGEX: reparse::Regex = {
-                    let re_str = format!($re, $(create_parse_fn!(@ty_capture $res)),*);
+                    let re_str = format!($re, $(<$res as reparse::ReParse>::regex_str()),*);
                     reparse::Regex::new(&re_str).unwrap()
                 };
             }
@@ -180,10 +199,6 @@ macro_rules! create_parse_fn{
             ))
         }
     };
-
-    (@ty_capture $t: ty) => {
-        format!("({})", <$t as reparse::ParsePrimitive>::regex_str())
-    };
 }
 
 
@@ -194,7 +209,7 @@ mod tests{
     #[test]
     fn test_float_parse(){
         // test regular expression for floating point numbers
-        let re = regex::Regex::new(&format!("^({})$", f32::regex_str())).unwrap();
+        let re = regex::Regex::new(&format!("^{}$", f32::regex_str())).unwrap();
         // positive
         assert!(check_float_capture(&re, "10"));
         assert!(check_float_capture(&re, "10.2"));
