@@ -14,6 +14,7 @@ use proc_macro2::TokenStream;
 use syn::spanned::Spanned;
 use syn::{Attribute, AttrStyle};
 use syn::{DeriveInput, Data, Field, Fields};
+use syn::{GenericParam, Generics};
 use syn::{Expr, Lit};
 
 
@@ -21,7 +22,7 @@ use syn::{Expr, Lit};
 pub fn re_parse_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream{
     let ds = parse_macro_input!(item as DeriveInput);
 
-    // find #[re_parse..] attribute
+    // find #[re_parse] a
     let regex_tts = ds.attrs.iter()
         .filter_map(get_re_parse_attribute)
         .next();
@@ -36,9 +37,12 @@ pub fn re_parse_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream
 
     let expanded = match impl_from_str_body(re, &ds){
         Ok(from_str_token_stream) => {
+            let generics = add_trait_bounds(ds.generics);
+            let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
             let name = &ds.ident;
             quote!{
-                impl std::str::FromStr for #name{
+                impl #impl_generics std::str::FromStr for #name #ty_generics #where_clause{
                     type Err = Box<std::error::Error>;
 
                     fn from_str(input_str: &str)->Result<Self, Self::Err>{
@@ -55,6 +59,15 @@ pub fn re_parse_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream
     };
 
     proc_macro::TokenStream::from(expanded)
+}
+
+fn add_trait_bounds(mut generics: Generics) -> Generics {
+    for param in &mut generics.params {
+        if let GenericParam::Type(ref mut type_param) = *param {
+            type_param.bounds.push(parse_quote!(::reparse::ReParse));
+        }
+    }
+    generics
 }
 
 
