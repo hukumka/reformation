@@ -8,7 +8,7 @@
 //! using provided format string.
 //!
 //! ```
-//! use reparse::prelude::*;
+//! use reparse::ReParse;
 //!
 //! #[derive(ReParse, Debug)]
 //! #[re_parse(r"{year}-{month}-{day} {hour}:{minute}")]
@@ -95,10 +95,7 @@
 //! }
 //! ```
 
-pub mod prelude{
-    pub use reparse_proc_macro::*;
-    pub use super::ReParse;
-}
+pub use reparse_proc_macro::*;
 
 use std::fmt;
 use std::error::Error;

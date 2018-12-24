@@ -1,6 +1,6 @@
 extern crate reparse;
 
-use reparse::prelude::*;
+use reparse::ReParse;
 
 #[derive(Debug, ReParse)]
 #[re_parse(r"Vec\{{{x}, {y}, {z}\}}")]

@@ -15,6 +15,7 @@ use syn::spanned::Spanned;
 use syn::{Attribute, AttrStyle};
 use syn::{DeriveInput, Data, Field, Fields};
 use syn::{GenericParam, Generics};
+use syn::{Type, Ident};
 use syn::{Expr, Lit};
 
 
@@ -36,38 +37,11 @@ pub fn re_parse_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream
     let re = parse_macro_input!(regex_tts as Expr);
 
     let expanded = match impl_from_str_body(re, &ds){
-        Ok(from_str_token_stream) => {
-            let generics = add_trait_bounds(ds.generics);
-            let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-            let name = &ds.ident;
-            quote!{
-                impl #impl_generics std::str::FromStr for #name #ty_generics #where_clause{
-                    type Err = Box<std::error::Error>;
-
-                    fn from_str(input_str: &str)->Result<Self, Self::Err>{
-                        #from_str_token_stream
-                    }
-                }
-            }
-        },
-        Err(errors) => {
-            quote!{
-                #errors
-            }
-        }
+        Ok(ok) => ok,
+        Err(errors) => errors
     };
 
     proc_macro::TokenStream::from(expanded)
-}
-
-fn add_trait_bounds(mut generics: Generics) -> Generics {
-    for param in &mut generics.params {
-        if let GenericParam::Type(ref mut type_param) = *param {
-            type_param.bounds.push(parse_quote!(::reparse::ReParse));
-        }
-    }
-    generics
 }
 
 
@@ -100,14 +74,32 @@ fn impl_from_str_body(re: Expr, ds: &DeriveInput)->Result<TokenStream, TokenStre
         .unzip();
 
     // hack over unability of quote to use same variable multiple times
-    let types1 = &types;
-    let names1 = &names;
-    let names2 = &names;
-    let types2 = &types;
-    let names3 = &names;
-    let types3 = &types;
 
-    let res = quote!{
+    let generics = &ds.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let name = &ds.ident;
+    let from_str_token_stream = quote_from_str_body(&re_str, &names, &types);
+
+    Ok(quote!{
+        impl #impl_generics std::str::FromStr for #name #ty_generics #where_clause{
+            type Err = Box<std::error::Error>;
+
+            fn from_str(input_str: &str)->Result<Self, Self::Err>{
+                #from_str_token_stream
+            }
+        }
+    })
+}
+
+fn quote_from_str_body(re_str: &str, names: &[&Ident], types: &[&Type])->TokenStream{
+    let types1 = types;
+    let names1 = names;
+    let names2 = names;
+    let types2 = types;
+    let names3 = names;
+    let types3 = types;
+
+    quote!{
         reparse::lazy_static!{
             static ref RE: reparse::Regex = {
                 let re_str = &format!(#re_str, #(#names1=<#types1 as reparse::ReParse>::regex_str()),*);
@@ -124,9 +116,7 @@ fn impl_from_str_body(re: Expr, ds: &DeriveInput)->Result<TokenStream, TokenStre
         Ok(Self{
             #(#names3,)*
         })
-    };
-
-    Ok(res)
+    }
 }
 
 
