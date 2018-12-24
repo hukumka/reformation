@@ -4,6 +4,8 @@ version = "0.2.1"
 authors = ["hukumka <hukumka212@gmail.com>"]
 edition = "2018"
 
+license = "MIT"
+
 [lib]
 proc-macro = true
 
@@ -11,5 +13,4 @@ proc-macro = true
 syn = {version="0.15", features = ["derive"] }
 quote = "0.6"
 proc-macro2 = "0.4"
-regex = "1.1"
 
