@@ -4,6 +4,9 @@ version = "0.2.1"
 authors = ["hukumka <hukumka212@gmail.com>"]
 edition = "2018"
 
+readme = "README.md"
+license = "MIT"
+
 [dependencies]
 regex = "1.1.0"
 lazy_static = "1.2.0"
