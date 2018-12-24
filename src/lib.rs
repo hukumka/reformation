@@ -6,6 +6,13 @@
 //! Derive will require attribute reformation to specify format string,
 //! which will be treated as format string -> regular expression string
 //!
+//! Types implementing `Reformation` by default:
+//!
+//! + signed integers: `i8` `i16` `i32` `i64` `i128` `isize`
+//! + unsigned integers: `u8` `u16` `u32` `u64` `u128` `usize`
+//! + floats: `f32` `f64`
+//! + `String`
+//!
 //! ```
 //! use reformation::Reformation;
 //!
