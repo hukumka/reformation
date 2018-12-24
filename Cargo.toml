@@ -8,6 +8,8 @@ readme = "README.md"
 license = "MIT"
 repository = "https://github.com/hukumka/reformation"
 travis-ci = { repository = "hukumka/reformation" }
+keywords = ["parsing", "regex"]
+categories = ["Parsing"]
 
 [dependencies]
 regex = "1.1.0"
