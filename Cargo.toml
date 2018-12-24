@@ -3,6 +3,7 @@ name = "reformation"
 version = "0.2.1"
 authors = ["hukumka <hukumka212@gmail.com>"]
 edition = "2018"
+description = "Parsing via regular expressions"
 
 readme = "README.md"
 license = "MIT"
