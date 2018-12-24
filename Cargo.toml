@@ -1,6 +1,6 @@
 [package]
-name = "reparse"
-version = "0.2.0"
+name = "reformation"
+version = "0.2.1"
 authors = ["hukumka <hukumka212@gmail.com>"]
 edition = "2018"
 
@@ -8,4 +8,4 @@ edition = "2018"
 regex = "1.1.0"
 lazy_static = "1.2.0"
 
-reparse_proc_macro = {path="reparse_proc_macro", version="0.1.0"}
+reformation_derive = {path="reformation_derive", version="0.2.1"}

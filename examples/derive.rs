@@ -1,17 +1,17 @@
-extern crate reparse;
+extern crate reformation;
 
-use reparse::ReParse;
+use reformation::Reformation;
 
-#[derive(Debug, ReParse)]
-#[re_parse(r"Vec\{{{x}, {y}, {z}\}}")]
+#[derive(Debug, Reformation)]
+#[reformation(r"Vec\{{{x}, {y}, {z}\}}")]
 struct Vec{
     x: f32,
     y: f32,
     z: f32
 }
 
-#[derive(Debug, ReParse)]
-#[re_parse(r"Rect\{{{a}, {b}\}}")]
+#[derive(Debug, Reformation)]
+#[reformation(r"Rect\{{{a}, {b}\}}")]
 struct Rect{
     a: Vec,
     b: Vec,

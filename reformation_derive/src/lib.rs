@@ -19,8 +19,8 @@ use syn::{Type, Ident};
 use syn::{Expr, Lit};
 
 
-#[proc_macro_derive(ReParse, attributes(re_parse))]
-pub fn re_parse_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream{
+#[proc_macro_derive(Reformation, attributes(reformation))]
+pub fn reformation_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream{
     let mut ds = parse_macro_input!(item as DeriveInput);
 
     add_trait_bounds(&mut ds.generics);
@@ -50,7 +50,7 @@ pub fn re_parse_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream
 fn add_trait_bounds(generics: &mut Generics){
     for param in &mut generics.params {
         if let GenericParam::Type(ref mut type_param) = *param {
-            type_param.bounds.push(parse_quote!(::reparse::ReParse));
+            type_param.bounds.push(parse_quote!(::reformation::Reformation));
         }
     }
 }
@@ -65,7 +65,7 @@ fn get_re_parse_attribute(a: &Attribute)->Option<&TokenStream>{
     };
     let is_re_parse = quote!(#pound).to_string() == "#"
         && style_cmp
-        && quote!(#path).to_string() == "re_parse";
+        && quote!(#path).to_string() == "reformation";
     if is_re_parse{
         Some(&a.tts)
     }else{
@@ -89,12 +89,12 @@ fn impl_from_str_body(re: Expr, ds: &DeriveInput)->Result<TokenStream, TokenStre
     let generics = &ds.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let name = &ds.ident;
-    let re_parse_body = quote_impl_reparse(&re_str, &names, &types);
+    let re_parse_body = quote_impl_reformation(&re_str, &names, &types);
     let from_str_body = quote_impl_from_str(&ds);
 
 
     Ok(quote!{
-        impl #impl_generics ::reparse::ReParse for #name #ty_generics #where_clause{
+        impl #impl_generics ::reformation::Reformation for #name #ty_generics #where_clause{
             #re_parse_body
         }
 
@@ -102,7 +102,7 @@ fn impl_from_str_body(re: Expr, ds: &DeriveInput)->Result<TokenStream, TokenStre
     })
 }
 
-fn quote_impl_reparse(re_str: &str, names: &[&Ident], types: &[&Type])->TokenStream{
+fn quote_impl_reformation(re_str: &str, names: &[&Ident], types: &[&Type])->TokenStream{
     let types1 = types;
     let types2 = types;
     let types3 = types;
@@ -113,9 +113,9 @@ fn quote_impl_reparse(re_str: &str, names: &[&Ident], types: &[&Type])->TokenStr
     let names3 = names;
     quote!{
         fn regex_str()->&'static str{
-            ::reparse::lazy_static!{
+            ::reformation::lazy_static!{
                 static ref STR: String = {
-                    format!(#re_str, #(#names1 = <#types1 as ::reparse::ReParse>::regex_str()),*)
+                    format!(#re_str, #(#names1 = <#types1 as ::reformation::Reformation>::regex_str()),*)
                 };
             }
             &STR
@@ -123,14 +123,14 @@ fn quote_impl_reparse(re_str: &str, names: &[&Ident], types: &[&Type])->TokenStr
 
         fn captures_count()->usize{
             let mut count = 0;
-            #(count += <#types2 as ::reparse::ReParse>::captures_count();)*
+            #(count += <#types2 as ::reformation::Reformation>::captures_count();)*
             count
         }
 
-        fn from_captures(captures: &::reparse::Captures, mut offset: usize)->Result<Self, Box<std::error::Error>>{
+        fn from_captures(captures: &::reformation::Captures, mut offset: usize)->Result<Self, Box<std::error::Error>>{
             #(
-                let #names2 = <#types3 as reparse::ReParse>::from_captures(&captures, offset)?;
-                offset += <#types4 as reparse::ReParse>::captures_count();
+                let #names2 = <#types3 as ::reformation::Reformation>::from_captures(&captures, offset)?;
+                offset += <#types4 as ::reformation::Reformation>::captures_count();
             )*
             Ok(Self{
                 #(#names3,)*
@@ -150,15 +150,15 @@ fn quote_impl_from_str(ds: &DeriveInput)->TokenStream{
             type Err = Box<std::error::Error>;
 
             fn from_str(input_str: &str)->Result<Self, Self::Err>{
-                reparse::lazy_static!{
-                    static ref RE: reparse::Regex = {
-                        reparse::Regex::new(#name2 #ty_generics2::regex_str())
+                reformation::lazy_static!{
+                    static ref RE: reformation::Regex = {
+                        reformation::Regex::new(#name2 #ty_generics2::regex_str())
                             .unwrap_or_else(|x| panic!("Cannot compile regex {:?}", ))
                     };
                 }
 
                 let captures = RE.captures(input_str).ok_or_else(||{
-                        ::reparse::NoRegexMatch{
+                        ::reformation::NoRegexMatch{
                             format: Self::regex_str(),
                             request: input_str.to_string()
                         }
