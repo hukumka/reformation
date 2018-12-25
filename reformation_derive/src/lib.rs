@@ -79,19 +79,24 @@ fn impl_from_str_body(re: Expr, ds: &DeriveInput)->Result<TokenStream, TokenStre
     let args = arguments(&re_str);
     let fields = get_fields(&ds)?;
 
-    let (names, types): (Vec<_>, Vec<_>) = fields.iter()
+    let (items_to_parse, types_to_parse): (Vec<_>, Vec<_>) = fields.iter()
         .map(|x| (x.ident.as_ref().unwrap(), &x.ty))
         .filter(|(ident, _ty)| args.contains(&ident.to_string()))
         .unzip();
 
-    // hack over unability of quote to use same variable multiple times
+    let (items_default, types_default): (Vec<_>, Vec<_>) = fields.iter()
+        .map(|x| (x.ident.as_ref().unwrap(), &x.ty))
+        .filter(|(ident, _ty)| !args.contains(&ident.to_string()))
+        .unzip();
+
 
     let generics = &ds.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let name = &ds.ident;
-    let re_parse_body = quote_impl_reformation(&re_str, &names, &types);
+    let re_parse_body = quote_impl_reformation(&re_str,
+                                               (&items_to_parse, &types_to_parse),
+                                               (&items_default, &types_default));
     let from_str_body = quote_impl_from_str(&ds);
-
 
     Ok(quote!{
         impl #impl_generics ::reformation::Reformation for #name #ty_generics #where_clause{
@@ -102,7 +107,11 @@ fn impl_from_str_body(re: Expr, ds: &DeriveInput)->Result<TokenStream, TokenStre
     })
 }
 
-fn quote_impl_reformation(re_str: &str, names: &[&Ident], types: &[&Type])->TokenStream{
+fn quote_impl_reformation(re_str: &str, items_to_parse: (&[&Ident], &[&Type]), items_default: (&[&Ident], &[&Type]))->TokenStream{
+    let (names, types) = items_to_parse;
+    let (names_default, types_default) = items_default;
+
+    // hack over unability of quote to use same variable multiple times
     let types1 = types;
     let types2 = types;
     let types3 = types;
@@ -134,6 +143,7 @@ fn quote_impl_reformation(re_str: &str, names: &[&Ident], types: &[&Type])->Toke
             )*
             Ok(Self{
                 #(#names3,)*
+                #(#names_default: <#types_default as Default>::default()),*
             })
         }
     }

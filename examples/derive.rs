@@ -18,6 +18,10 @@ struct Vec{
 struct Rect{
     a: Vec,
     b: Vec,
+
+    // Note what zero does not appear in format string, but
+    // initialized from `Default` trait implementation
+    zero: usize,
 }
 
 fn main(){
