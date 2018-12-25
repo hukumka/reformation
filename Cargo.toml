@@ -1,6 +1,6 @@
 [package]
 name = "reformation"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["hukumka <hukumka212@gmail.com>"]
 edition = "2018"
 description = "Parsing via regular expressions"
@@ -10,10 +10,10 @@ license = "MIT"
 repository = "https://github.com/hukumka/reformation"
 travis-ci = { repository = "hukumka/reformation" }
 keywords = ["parsing", "regex"]
-categories = ["Parsing"]
+categories = ["parsing"]
 
 [dependencies]
 regex = "1.1.0"
 lazy_static = "1.2.0"
 
-reformation_derive = {path="reformation_derive", version="0.2.1"}
+reformation_derive = {path="reformation_derive", version="0.2.2"}

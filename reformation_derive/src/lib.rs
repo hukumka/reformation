@@ -25,7 +25,7 @@ pub fn reformation_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStr
 
     add_trait_bounds(&mut ds.generics);
 
-    // find #[re_parse] a
+    // find #[reformation] attribute
     let regex_tts = ds.attrs.iter()
         .filter_map(get_re_parse_attribute)
         .next();
@@ -194,11 +194,27 @@ fn get_regex_str(re: &Expr)->Result<String, TokenStream>{
     expr_par(re)
         .and_then(expr_lit)
         .and_then(lit_str)
+        .map(|x| replace_capturing_groups_with_no_capturing(&x))
         .ok_or_else(||{
             quote_spanned!{re.span()=>
                 compile_error!{"regex_parse argument must be string literal."}
             }
         })
+}
+
+fn replace_capturing_groups_with_no_capturing(s: &str)->String{
+    let mut prev = None;
+    let mut res = String::new();
+    let mut iter = s.chars().peekable();
+    while let Some(c) = iter.next(){
+        if prev != Some('\\') && c == '(' && iter.peek() != Some(&'?'){
+            res.push_str("(?:");
+        }else{
+            res.push(c);
+        }
+        prev = Some(c);
+    }
+    res
 }
 
 fn expr_par(x: &Expr)->Option<&Expr>{

@@ -265,5 +265,4 @@ mod tests{
             c.len() == 2 && c.get(1).map(|x| x.as_str()) == Some(s)
         }).unwrap_or(false)
     }
-
 }
