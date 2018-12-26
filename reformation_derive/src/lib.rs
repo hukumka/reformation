@@ -1,4 +1,4 @@
-#![recursion_limit="128"]
+#![recursion_limit = "128"]
 
 #[macro_use]
 extern crate quote;
@@ -12,93 +12,92 @@ use std::ops::Deref;
 
 use proc_macro2::TokenStream;
 use syn::spanned::Spanned;
-use syn::{Attribute, AttrStyle};
-use syn::{DeriveInput, Data, Field, Fields};
-use syn::{GenericParam, Generics};
-use syn::{Type, Ident};
+use syn::{AttrStyle, Attribute};
+use syn::{Data, DeriveInput, Field, Fields};
 use syn::{Expr, Lit};
-
+use syn::{GenericParam, Generics};
+use syn::{Ident, Type};
 
 #[proc_macro_derive(Reformation, attributes(reformation))]
-pub fn reformation_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream{
+pub fn reformation_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut ds = parse_macro_input!(item as DeriveInput);
 
     add_trait_bounds(&mut ds.generics);
 
     // find #[reformation] attribute
-    let regex_tts = ds.attrs.iter()
-        .filter_map(get_re_parse_attribute)
-        .next();
-    let regex_tts = if let Some(regex_tts) = regex_tts{
+    let regex_tts = ds.attrs.iter().filter_map(get_re_parse_attribute).next();
+    let regex_tts = if let Some(regex_tts) = regex_tts {
         proc_macro::TokenStream::from(regex_tts.clone())
-    }else{
-        return proc_macro::TokenStream::from(quote!{
+    } else {
+        return proc_macro::TokenStream::from(quote! {
             compile_error!{"Attribute #[re_parse(r\"..\")] containing format string not found."}
         });
     };
     let re = parse_macro_input!(regex_tts as Expr);
 
-    let expanded = match impl_from_str_body(re, &ds){
+    let expanded = match impl_from_str_body(re, &ds) {
         Ok(ok) => ok,
-        Err(errors) => errors
+        Err(errors) => errors,
     };
 
     proc_macro::TokenStream::from(expanded)
 }
 
-
-fn add_trait_bounds(generics: &mut Generics){
+fn add_trait_bounds(generics: &mut Generics) {
     for param in &mut generics.params {
         if let GenericParam::Type(ref mut type_param) = *param {
-            type_param.bounds.push(parse_quote!(::reformation::Reformation));
+            type_param
+                .bounds
+                .push(parse_quote!(::reformation::Reformation));
         }
     }
 }
 
-
-fn get_re_parse_attribute(a: &Attribute)->Option<&TokenStream>{
+fn get_re_parse_attribute(a: &Attribute) -> Option<&TokenStream> {
     let pound = &a.pound_token;
     let path = &a.path;
-    let style_cmp = match a.style{
+    let style_cmp = match a.style {
         AttrStyle::Outer => true,
-        _ => false
+        _ => false,
     };
     let is_re_parse = quote!(#pound).to_string() == "#"
         && style_cmp
         && quote!(#path).to_string() == "reformation";
-    if is_re_parse{
+    if is_re_parse {
         Some(&a.tts)
-    }else{
+    } else {
         None
     }
 }
 
-
-fn impl_from_str_body(re: Expr, ds: &DeriveInput)->Result<TokenStream, TokenStream>{
+fn impl_from_str_body(re: Expr, ds: &DeriveInput) -> Result<TokenStream, TokenStream> {
     let re_str = get_regex_str(&re)?;
     let args = arguments(&re_str);
     let fields = get_fields(&ds)?;
 
-    let (items_to_parse, types_to_parse): (Vec<_>, Vec<_>) = fields.iter()
+    let (items_to_parse, types_to_parse): (Vec<_>, Vec<_>) = fields
+        .iter()
         .map(|x| (x.ident.as_ref().unwrap(), &x.ty))
         .filter(|(ident, _ty)| args.contains(&ident.to_string()))
         .unzip();
 
-    let (items_default, types_default): (Vec<_>, Vec<_>) = fields.iter()
+    let (items_default, types_default): (Vec<_>, Vec<_>) = fields
+        .iter()
         .map(|x| (x.ident.as_ref().unwrap(), &x.ty))
         .filter(|(ident, _ty)| !args.contains(&ident.to_string()))
         .unzip();
 
-
     let generics = &ds.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let name = &ds.ident;
-    let re_parse_body = quote_impl_reformation(&re_str,
-                                               (&items_to_parse, &types_to_parse),
-                                               (&items_default, &types_default));
+    let re_parse_body = quote_impl_reformation(
+        &re_str,
+        (&items_to_parse, &types_to_parse),
+        (&items_default, &types_default),
+    );
     let from_str_body = quote_impl_from_str(&ds);
 
-    Ok(quote!{
+    Ok(quote! {
         impl #impl_generics ::reformation::Reformation for #name #ty_generics #where_clause{
             #re_parse_body
         }
@@ -107,7 +106,11 @@ fn impl_from_str_body(re: Expr, ds: &DeriveInput)->Result<TokenStream, TokenStre
     })
 }
 
-fn quote_impl_reformation(re_str: &str, items_to_parse: (&[&Ident], &[&Type]), items_default: (&[&Ident], &[&Type]))->TokenStream{
+fn quote_impl_reformation(
+    re_str: &str,
+    items_to_parse: (&[&Ident], &[&Type]),
+    items_default: (&[&Ident], &[&Type]),
+) -> TokenStream {
     let (names, types) = items_to_parse;
     let (names_default, types_default) = items_default;
 
@@ -120,7 +123,7 @@ fn quote_impl_reformation(re_str: &str, items_to_parse: (&[&Ident], &[&Type]), i
     let names1 = names;
     let names2 = names;
     let names3 = names;
-    quote!{
+    quote! {
         fn regex_str()->&'static str{
             ::reformation::lazy_static!{
                 static ref STR: String = {
@@ -149,12 +152,12 @@ fn quote_impl_reformation(re_str: &str, items_to_parse: (&[&Ident], &[&Type]), i
     }
 }
 
-fn quote_impl_from_str(ds: &DeriveInput)->TokenStream{
+fn quote_impl_from_str(ds: &DeriveInput) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = ds.generics.split_for_impl();
     let ty_generics2 = &ty_generics;
     let name = &ds.ident;
     let name2 = &ds.ident;
-    quote!{
+    quote! {
 
         impl #impl_generics std::str::FromStr for #name #ty_generics #where_clause{
             type Err = Box<std::error::Error>;
@@ -180,46 +183,44 @@ fn quote_impl_from_str(ds: &DeriveInput)->TokenStream{
     }
 }
 
-
-fn get_fields(struct_: &DeriveInput)->Result<Vec<&Field>, TokenStream>{
-    if let Data::Struct(ref ds) = struct_.data{
+fn get_fields(struct_: &DeriveInput) -> Result<Vec<&Field>, TokenStream> {
+    if let Data::Struct(ref ds) = struct_.data {
         let fields: Vec<_> = ds.fields.iter().collect();
 
-        if let Fields::Named(_) = ds.fields{
+        if let Fields::Named(_) = ds.fields {
             Ok(fields)
-        }else{
-            Err(quote_spanned!{ds.fields.span()=>
+        } else {
+            Err(quote_spanned! {ds.fields.span()=>
                 compile_error!{"regex_parse supports only structs with named fields."}
             })
         }
-    }else{
-        Err(quote_spanned!{struct_.span()=>
+    } else {
+        Err(quote_spanned! {struct_.span()=>
             compile_error!{"regex_parse supports only structs."}
         })
     }
 }
 
-
-fn get_regex_str(re: &Expr)->Result<String, TokenStream>{
+fn get_regex_str(re: &Expr) -> Result<String, TokenStream> {
     expr_par(re)
         .and_then(expr_lit)
         .and_then(lit_str)
         .map(|x| replace_capturing_groups_with_no_capturing(&x))
-        .ok_or_else(||{
-            quote_spanned!{re.span()=>
+        .ok_or_else(|| {
+            quote_spanned! {re.span()=>
                 compile_error!{"regex_parse argument must be string literal."}
             }
         })
 }
 
-fn replace_capturing_groups_with_no_capturing(s: &str)->String{
+fn replace_capturing_groups_with_no_capturing(s: &str) -> String {
     let mut prev = None;
     let mut res = String::new();
     let mut iter = s.chars().peekable();
-    while let Some(c) = iter.next(){
-        if prev != Some('\\') && c == '(' && iter.peek() != Some(&'?'){
+    while let Some(c) = iter.next() {
+        if prev != Some('\\') && c == '(' && iter.peek() != Some(&'?') {
             res.push_str("(?:");
-        }else{
+        } else {
             res.push(c);
         }
         prev = Some(c);
@@ -227,53 +228,54 @@ fn replace_capturing_groups_with_no_capturing(s: &str)->String{
     res
 }
 
-fn expr_par(x: &Expr)->Option<&Expr>{
-    if let Expr::Paren(ref i) = x{
+fn expr_par(x: &Expr) -> Option<&Expr> {
+    if let Expr::Paren(ref i) = x {
         Some(i.expr.deref())
-    }else{
+    } else {
         None
     }
 }
 
-fn expr_lit(x: &Expr)->Option<&Lit>{
-    if let Expr::Lit(ref i) = x{
+fn expr_lit(x: &Expr) -> Option<&Lit> {
+    if let Expr::Lit(ref i) = x {
         Some(&i.lit)
-    }else{
+    } else {
         None
     }
 }
 
-fn lit_str(x: &Lit)->Option<String>{
-    if let Lit::Str(ref s) = x{
+fn lit_str(x: &Lit) -> Option<String> {
+    if let Lit::Str(ref s) = x {
         Some(s.value())
-    }else{
+    } else {
         None
     }
 }
-
 
 /// parse which fields present in format string
-fn arguments(format_string: &str)->HashSet<String>{
+fn arguments(format_string: &str) -> HashSet<String> {
     let mut curly_bracket_stack = vec![];
     let mut map = HashSet::new();
 
     let mut iter = format_string.char_indices().peekable();
-    loop{
-        match iter.next(){
+    loop {
+        match iter.next() {
             Some((i, c)) if c == '{' => {
-                if iter.peek().map(|(_, c)| *c) != Some('{'){
+                if iter.peek().map(|(_, c)| *c) != Some('{') {
                     curly_bracket_stack.push(i + c.len_utf8());
                 }
-            },
+            }
             Some((i, c)) if c == '}' => {
-                if let Some(start) = curly_bracket_stack.pop(){
+                if let Some(start) = curly_bracket_stack.pop() {
                     let end = i;
                     let substr = format_string.get(start..end).unwrap().to_string();
                     map.insert(substr);
                 }
-            },
-            Some(_) => {},
-            None => {break;}
+            }
+            Some(_) => {}
+            None => {
+                break;
+            }
         }
     }
     map

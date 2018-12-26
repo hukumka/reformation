@@ -4,10 +4,10 @@ use reformation::Reformation;
 
 #[derive(Debug, Reformation)]
 #[reformation(r"Vec\{{{x}, {y}, {z}\}}")]
-struct Vec{
+struct Vec {
     x: f32,
     y: f32,
-    z: f32
+    z: f32,
 }
 
 // note that capture group (,|;) is replaced with non-capturing (:?,|;) in order
@@ -15,7 +15,7 @@ struct Vec{
 // (?P<name>expr) will still cause logical error and hopefully panic.
 #[derive(Debug, Reformation)]
 #[reformation(r"Rect\{{{a}(,|;)\s+{b}\}}")]
-struct Rect{
+struct Rect {
     a: Vec,
     b: Vec,
 
@@ -24,7 +24,7 @@ struct Rect{
     zero: usize,
 }
 
-fn main(){
+fn main() {
     let a: Vec = "Vec{1, 2, 3}".parse().unwrap();
     println!("{:?}", a);
 

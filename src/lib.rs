@@ -66,41 +66,43 @@
 //! }
 //! ```
 
-
 pub use reformation_derive::*;
 
-use std::fmt;
-use std::error::Error;
-pub use regex::{Regex, Captures};
 pub use lazy_static::lazy_static;
+pub use regex::{Captures, Regex};
+use std::error::Error;
+use std::fmt;
 
 #[derive(Debug)]
-pub struct NoRegexMatch{
+pub struct NoRegexMatch {
     pub format: &'static str,
     pub request: String,
 }
 
-impl std::error::Error for NoRegexMatch{}
-impl fmt::Display for NoRegexMatch{
-    fn fmt(&self, f: &mut fmt::Formatter)->fmt::Result{
-        write!(f, "String {:?} does not match format r{:?}", self.format, self.request)
+impl std::error::Error for NoRegexMatch {}
+impl fmt::Display for NoRegexMatch {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "String {:?} does not match format r{:?}",
+            self.format, self.request
+        )
     }
 }
 
-pub trait Reformation: Sized{
+pub trait Reformation: Sized {
     /// regular expression for matching this struct
-    fn regex_str()->&'static str;
+    fn regex_str() -> &'static str;
 
     // Can be calculated from regex_str, but this method guaranties no
     // recalculations each parse and does not make by hand implementing
     // much more difficult, although MORE error prone.
     /// number of used capture groups.
-    fn captures_count()->usize;
+    fn captures_count() -> usize;
 
     /// create instance of function from captures with given offset
-    fn from_captures(c: &Captures, offset: usize)->Result<Self, Box<Error>>;
+    fn from_captures(c: &Captures, offset: usize) -> Result<Self, Box<Error>>;
 }
-
 
 macro_rules! group_impl_parse_primitive{
     ($re: expr, $($name: ty),*) => {
@@ -125,11 +127,10 @@ macro_rules! group_impl_parse_primitive{
     };
 }
 
-group_impl_parse_primitive!{r"(\d+)", u8, u16, u32, u64, u128, usize}
-group_impl_parse_primitive!{r"([\+-]?\d+)", i8, i16, i32, i64, i128, isize}
-group_impl_parse_primitive!{r"((?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?)", f32, f64}
-group_impl_parse_primitive!{r"(.*)", String}
-
+group_impl_parse_primitive! {r"(\d+)", u8, u16, u32, u64, u128, usize}
+group_impl_parse_primitive! {r"([\+-]?\d+)", i8, i16, i32, i64, i128, isize}
+group_impl_parse_primitive! {r"((?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?)", f32, f64}
+group_impl_parse_primitive! {r"(.*)", String}
 
 /// Creates function for parsing tuple of values from
 /// strings corresponding to given template.
@@ -230,13 +231,12 @@ macro_rules! create_parse_fn{
     };
 }
 
-
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
 
     #[test]
-    fn test_float_parse(){
+    fn test_float_parse() {
         // test regular expression for floating point numbers
         let re = regex::Regex::new(&format!("^{}$", f32::regex_str())).unwrap();
         // positive
@@ -254,15 +254,15 @@ mod tests{
         assert!(check_float_capture(&re, "5.e-2")); // should this pass?
 
         // negative
-        assert!(! re.is_match("5.."));
-        assert!(! re.is_match("."));
-        assert!(! re.is_match("--4."));
-        assert!(! re.is_match("-.0"));
+        assert!(!re.is_match("5.."));
+        assert!(!re.is_match("."));
+        assert!(!re.is_match("--4."));
+        assert!(!re.is_match("-.0"));
     }
 
-    fn check_float_capture(r: &regex::Regex, s: &str)->bool{
-         r.captures(s).map(|c|{
-            c.len() == 2 && c.get(1).map(|x| x.as_str()) == Some(s)
-        }).unwrap_or(false)
+    fn check_float_capture(r: &regex::Regex, s: &str) -> bool {
+        r.captures(s)
+            .map(|c| c.len() == 2 && c.get(1).map(|x| x.as_str()) == Some(s))
+            .unwrap_or(false)
     }
 }
