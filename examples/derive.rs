@@ -24,6 +24,15 @@ struct Rect {
     zero: usize,
 }
 
+// One may choose to use plain format syntax (with no regular expressions)
+// by providing `no_regex=true` mode
+#[derive(Debug, Reformation)]
+#[reformation(r"(\|)({left_eye}_{right_eye})(|/)", no_regex=true)]
+struct Crab{
+    left_eye: String,
+    right_eye: String,
+}
+
 fn main() {
     let a: Vec = "Vec{1, 2, 3}".parse().unwrap();
     println!("{:?}", a);
@@ -33,4 +42,7 @@ fn main() {
 
     // Even through such structs can be combined, but do not overuse it, since it will produce horrific regular expressions
     println!("{:?}", Rect::regex_str());
+
+    let pirate_crab: Crab = r"(\|)(x_^)(|/)".parse().unwrap();
+    println!("{:?}", pirate_crab);
 }

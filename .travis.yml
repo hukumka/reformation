@@ -10,3 +10,5 @@ matrix:
 script:
   - cargo build --verbose --all
   - cargo test --verbose --all
+  - cd reformation_derive
+  - cargo test --verbose --all

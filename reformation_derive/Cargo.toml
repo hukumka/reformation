@@ -12,7 +12,8 @@ repository = "https://github.com/hukumka/reformation"
 proc-macro = true
 
 [dependencies]
-syn = {version="0.15", features = ["derive"] }
+syn = {version="0.15", features = ["full"] }
 quote = "0.6"
 proc-macro2 = "0.4"
+regex = "1.1.0"
 

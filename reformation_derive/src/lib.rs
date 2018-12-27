@@ -7,40 +7,45 @@ extern crate syn;
 
 extern crate proc_macro;
 
-use std::collections::HashSet;
-use std::ops::Deref;
+mod syn_helpers;
+
+use crate::syn_helpers::*;
+
+use std::collections::{HashMap, HashSet};
 
 use proc_macro2::TokenStream;
-use syn::spanned::Spanned;
+use regex::{Captures, Regex};
+use syn::parse::{Parse, ParseStream};
+use syn::punctuated::Punctuated;
+use syn::Expr;
 use syn::{AttrStyle, Attribute};
 use syn::{Data, DeriveInput, Field, Fields};
-use syn::{Expr, Lit};
 use syn::{GenericParam, Generics};
 use syn::{Ident, Type};
 
 #[proc_macro_derive(Reformation, attributes(reformation))]
 pub fn reformation_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let mut ds = parse_macro_input!(item as DeriveInput);
-
-    add_trait_bounds(&mut ds.generics);
-
-    // find #[reformation] attribute
-    let regex_tts = ds.attrs.iter().filter_map(get_re_parse_attribute).next();
-    let regex_tts = if let Some(regex_tts) = regex_tts {
-        proc_macro::TokenStream::from(regex_tts.clone())
-    } else {
-        return proc_macro::TokenStream::from(quote! {
-            compile_error!{"Attribute #[re_parse(r\"..\")] containing format string not found."}
-        });
-    };
-    let re = parse_macro_input!(regex_tts as Expr);
-
-    let expanded = match impl_from_str_body(re, &ds) {
+    let ds = parse_macro_input!(item as DeriveInput);
+    let expanded = match reformation_derive_do(ds) {
         Ok(ok) => ok,
-        Err(errors) => errors,
+        Err(errors) => errors.to_compile_error(),
     };
-
     proc_macro::TokenStream::from(expanded)
+}
+
+fn reformation_derive_do(mut ds: DeriveInput) -> syn::Result<TokenStream> {
+    add_trait_bounds(&mut ds.generics);
+    let attributes = get_attributes(&ds)?;
+    impl_trait(attributes, &ds)
+}
+
+fn get_attributes(ds: &DeriveInput) -> syn::Result<ReAttribute> {
+    let attr_tts = ds.attrs.iter().filter_map(get_re_parse_attribute).next();
+    let attr_tts = attr_tts
+        .ok_or_else(|| syn::Error::new_spanned(ds, "Expected #[reformation(..)] attribute"))?;
+    // ugly workaround against inability to construct ParseBuffer
+    let attr: ReAttribute = syn::parse_str(&attr_tts.to_string())?;
+    Ok(attr)
 }
 
 fn add_trait_bounds(generics: &mut Generics) {
@@ -70,8 +75,10 @@ fn get_re_parse_attribute(a: &Attribute) -> Option<&TokenStream> {
     }
 }
 
-fn impl_from_str_body(re: Expr, ds: &DeriveInput) -> Result<TokenStream, TokenStream> {
-    let re_str = get_regex_str(&re)?;
+fn impl_trait(mut re: ReAttribute, ds: &DeriveInput) -> syn::Result<TokenStream> {
+    re.apply_no_regex();
+
+    let re_str = re.regex;
     let args = arguments(&re_str);
     let fields = get_fields(&ds)?;
 
@@ -183,34 +190,84 @@ fn quote_impl_from_str(ds: &DeriveInput) -> TokenStream {
     }
 }
 
-fn get_fields(struct_: &DeriveInput) -> Result<Vec<&Field>, TokenStream> {
+fn get_fields(struct_: &DeriveInput) -> syn::Result<Vec<&Field>> {
     if let Data::Struct(ref ds) = struct_.data {
         let fields: Vec<_> = ds.fields.iter().collect();
 
         if let Fields::Named(_) = ds.fields {
             Ok(fields)
         } else {
-            Err(quote_spanned! {ds.fields.span()=>
-                compile_error!{"regex_parse supports only structs with named fields."}
-            })
+            Err(syn::Error::new_spanned(
+                &ds.fields,
+                "regex_parse supports only structs with named fields.",
+            ))
         }
     } else {
-        Err(quote_spanned! {struct_.span()=>
-            compile_error!{"regex_parse supports only structs."}
+        Err(syn::Error::new_spanned(
+            &struct_,
+            "regex_parse supports only structs.",
+        ))
+    }
+}
+
+struct ReAttribute {
+    regex: String,
+    params: HashMap<String, Expr>,
+}
+
+impl ReAttribute {
+    /// if param no_regex specified, escape all characters, related to regular expressions
+    fn apply_no_regex(&mut self) {
+        match self.params.get("no_regex") {
+            Some(ref expr) if expr_bool_lit(&expr) == Some(true) => {
+                // escape '\\', '[', ']', '*', '|', '+', '?', '.', "{{"
+                let re = Regex::new(r"([\\\[\]\*\|\+\?\.\(\)\^\&]|\{\{)").unwrap();
+                let s = re.replace_all(&self.regex, |cap: &Captures| format!(r"\{}", &cap[0]));
+                // escape }} with \}}. Applied to reversed string, since they must be replaced from
+                // left to right: {}}} -> {}\}}
+                let s: String = s.chars().rev().collect();
+                let s = s.replace("}}", r"}}\");
+                self.regex = s.chars().rev().collect();
+            }
+            _ => {
+                // replace () with (:?)
+                self.regex = replace_capturing_groups_with_no_capturing(&self.regex);
+            }
+        }
+    }
+}
+
+impl Parse for ReAttribute {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let content;
+        parenthesized!(content in input);
+        let params: Punctuated<Expr, Token![,]> = content.parse_terminated(Expr::parse)?;
+        let mut iter = params.pairs();
+        let regex = iter
+            .next()
+            .ok_or_else(|| syn::Error::new_spanned(&params, "Expected format string"))
+            .and_then(|pair| get_regex_str(pair.value()))?;
+
+        let params: syn::Result<HashMap<_, _>> = iter
+            .map(|pair| {
+                let expr = pair.value();
+                expr_into_attribute_param(expr)
+                    .map(|(a, b)| (a.to_string(), b.clone()))
+                    .ok_or_else(|| syn::Error::new_spanned(expr, "Expected `param=expr`"))
+            })
+            .collect();
+
+        Ok(Self {
+            regex,
+            params: params?,
         })
     }
 }
 
-fn get_regex_str(re: &Expr) -> Result<String, TokenStream> {
-    expr_par(re)
-        .and_then(expr_lit)
+fn get_regex_str(re: &Expr) -> syn::Result<String> {
+    expr_lit(re)
         .and_then(lit_str)
-        .map(|x| replace_capturing_groups_with_no_capturing(&x))
-        .ok_or_else(|| {
-            quote_spanned! {re.span()=>
-                compile_error!{"regex_parse argument must be string literal."}
-            }
-        })
+        .ok_or_else(|| syn::Error::new_spanned(re, "regex_parse argument must be string literal."))
 }
 
 fn replace_capturing_groups_with_no_capturing(s: &str) -> String {
@@ -226,30 +283,6 @@ fn replace_capturing_groups_with_no_capturing(s: &str) -> String {
         prev = Some(c);
     }
     res
-}
-
-fn expr_par(x: &Expr) -> Option<&Expr> {
-    if let Expr::Paren(ref i) = x {
-        Some(i.expr.deref())
-    } else {
-        None
-    }
-}
-
-fn expr_lit(x: &Expr) -> Option<&Lit> {
-    if let Expr::Lit(ref i) = x {
-        Some(&i.lit)
-    } else {
-        None
-    }
-}
-
-fn lit_str(x: &Lit) -> Option<String> {
-    if let Lit::Str(ref s) = x {
-        Some(s.value())
-    } else {
-        None
-    }
 }
 
 /// parse which fields present in format string
@@ -279,4 +312,40 @@ fn arguments(format_string: &str) -> HashSet<String> {
         }
     }
     map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_no_regex_mode() {
+        let mut re_attr = reattributes_with_no_regex("Vec{{{}, {}}}");
+        re_attr.apply_no_regex();
+        assert_eq!(re_attr.regex, r"Vec\{{{}, {}\}}");
+        assert_eq!(
+            r"Vec\{(x), (y)\}",
+            format!(r"Vec\{{{}, {}\}}", "(x)", "(y)")
+        );
+
+        let s = r"\[T]/ *+* -.- (\|)(^_^)(|/) &&";
+        let mut re_attr = reattributes_with_no_regex(s);
+        re_attr.apply_no_regex();
+        assert_eq!(
+            re_attr.regex,
+            r"\\\[T\]/ \*\+\* -\.- \(\\\|\)\(\^_\^\)\(\|/\) \&\&"
+        );
+        let re = Regex::new(&re_attr.regex).unwrap();
+        assert!(re.is_match(s));
+    }
+
+    fn reattributes_with_no_regex(s: &str) -> ReAttribute {
+        let mut params = HashMap::new();
+        let expr_true: Expr = parse_quote!(true);
+        params.insert("no_regex".to_string(), expr_true);
+        ReAttribute {
+            regex: s.to_string(),
+            params,
+        }
+    }
 }
