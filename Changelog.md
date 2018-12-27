@@ -1,6 +1,7 @@
 ### 0.2.2
 + Auto replacement of capturing groups with non-capturing
 + Allow to omit items implementing default trait from format string
++ Add no_regex mode
 
 ### 0.2.1
 + Now able to use derived struct as build brick for other structs
