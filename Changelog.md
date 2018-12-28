@@ -1,3 +1,6 @@
+### 0.2.3
++ Add slack mode
+
 ### 0.2.2
 + Auto replacement of capturing groups with non-capturing
 + Allow to omit items implementing default trait from format string

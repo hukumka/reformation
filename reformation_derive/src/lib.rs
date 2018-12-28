@@ -77,6 +77,7 @@ fn get_re_parse_attribute(a: &Attribute) -> Option<&TokenStream> {
 
 fn impl_trait(mut re: ReAttribute, ds: &DeriveInput) -> syn::Result<TokenStream> {
     re.apply_no_regex();
+    re.apply_slack();
 
     let re_str = re.regex;
     let args = arguments(&re_str);
@@ -235,6 +236,17 @@ impl ReAttribute {
             }
         }
     }
+
+    fn apply_slack(&mut self) {
+        match self.params.get("slack") {
+            Some(ref expr) if expr_bool_lit(&expr) == Some(true) => {
+                let re = Regex::new(r"([,:;])\s*").unwrap();
+                let s = re.replace_all(&self.regex, |cap: &Captures| format!(r"{}\s*", &cap[1]));
+                self.regex = s.to_string();
+            }
+            _ => {}
+        }
+    }
 }
 
 impl Parse for ReAttribute {
@@ -320,7 +332,7 @@ mod tests {
 
     #[test]
     fn test_no_regex_mode() {
-        let mut re_attr = reattributes_with_no_regex("Vec{{{}, {}}}");
+        let mut re_attr = reattributes_with_mode("Vec{{{}, {}}}", "no_regex");
         re_attr.apply_no_regex();
         assert_eq!(re_attr.regex, r"Vec\{{{}, {}\}}");
         assert_eq!(
@@ -329,7 +341,7 @@ mod tests {
         );
 
         let s = r"\[T]/ *+* -.- (\|)(^_^)(|/) &&";
-        let mut re_attr = reattributes_with_no_regex(s);
+        let mut re_attr = reattributes_with_mode(s, "no_regex");
         re_attr.apply_no_regex();
         assert_eq!(
             re_attr.regex,
@@ -339,10 +351,17 @@ mod tests {
         assert!(re.is_match(s));
     }
 
-    fn reattributes_with_no_regex(s: &str) -> ReAttribute {
+    #[test]
+    fn test_slack_mode() {
+        let mut re_attr = reattributes_with_mode(r"Vec\({a}, {b}\)", "slack");
+        re_attr.apply_slack();
+        assert_eq!(re_attr.regex, r"Vec\({a},\s*{b}\)")
+    }
+
+    fn reattributes_with_mode(s: &str, mode: &str) -> ReAttribute {
         let mut params = HashMap::new();
         let expr_true: Expr = parse_quote!(true);
-        params.insert("no_regex".to_string(), expr_true);
+        params.insert(mode.to_string(), expr_true);
         ReAttribute {
             regex: s.to_string(),
             params,
