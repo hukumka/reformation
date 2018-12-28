@@ -12,6 +12,7 @@
 //! + unsigned integers: `u8` `u16` `u32` `u64` `u128` `usize`
 //! + floats: `f32` `f64`
 //! + `String`
+//! + `char`
 //!
 //! ```
 //! use reformation::Reformation;
@@ -36,6 +37,83 @@
 //!     assert_eq!(date.minute, 23);
 //! }
 //! ```
+//!
+//! ## Modes
+//!
+//! Order, in which modes are specified does not matter.
+//!
+//! ### no_regex
+//!
+//! Makes format string behave as regular string (in contrast with being regular expression),
+//! by escaping all special regex characters.
+//!
+//! ```
+//! use reformation::Reformation;
+//!
+//! #[derive(Reformation, Debug)]
+//! #[reformation("Vec{{{x}, {y}}}", no_regex=true)]
+//! struct Vec{
+//!     x: i32,
+//!     y: i32,
+//! }
+//!
+//! fn main(){
+//!     let v: Vec = "Vec{-1, 1}".parse().unwrap();
+//!     assert_eq!(v.x, -1);
+//!     assert_eq!(v.y, 1);
+//! }
+//! ```
+//!
+//! ### slack
+//!
+//! Allow arbitrary number of spaces after separators: ',', ';', ':'. For separator to be recognized
+//! as slack, it must be followed by at least one space in format string.
+//!
+//! ```
+//! use reformation::Reformation;
+//!
+//! #[derive(Reformation, Debug)]
+//! #[reformation(r"Vec\{{{x}, {y}\}}", slack=true)]
+//! struct Vec{
+//!     x: i32,
+//!     y: i32,
+//! }
+//!
+//! fn main(){
+//!     let v: Vec = "Vec{-1,1}".parse().unwrap();
+//!     assert_eq!(v.x, -1);
+//!     assert_eq!(v.y, 1);
+//!
+//!     let r: Vec = "Vec{15,   2}".parse().unwrap();
+//!     assert_eq!(r.x, 15);
+//!     assert_eq!(r.y, 2);
+//! }
+//! ```
+//!
+//! Combination of no_regex and slack behaves as expected:
+//!
+//! ```
+//! use reformation::Reformation;
+//!
+//! #[derive(Reformation, Debug)]
+//! #[reformation(r"Vec({x}; {y})", slack=true, no_regex=true)]
+//! struct Vec{
+//!     x: i32,
+//!     y: i32,
+//! }
+//!
+//! fn main(){
+//!     let v: Vec = "Vec(-1;1)".parse().unwrap();
+//!     assert_eq!(v.x, -1);
+//!     assert_eq!(v.y, 1);
+//!
+//!     let r: Vec = "Vec(15;   2)".parse().unwrap();
+//!     assert_eq!(r.x, 15);
+//!     assert_eq!(r.y, 2);
+//! }
+//! ```
+//!
+//! ## Extra examples
 //!
 //! Format string behaves as regular expression, so special symbols needs to be escaped.
 //! Also they can be used for more flexible format strings.
@@ -131,6 +209,7 @@ group_impl_parse_primitive! {r"(\d+)", u8, u16, u32, u64, u128, usize}
 group_impl_parse_primitive! {r"([\+-]?\d+)", i8, i16, i32, i64, i128, isize}
 group_impl_parse_primitive! {r"((?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?)", f32, f64}
 group_impl_parse_primitive! {r"(.*)", String}
+group_impl_parse_primitive! {r"(?)", char}
 
 /// Creates function for parsing tuple of values from
 /// strings corresponding to given template.

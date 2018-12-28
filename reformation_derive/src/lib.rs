@@ -240,7 +240,7 @@ impl ReAttribute {
     fn apply_slack(&mut self) {
         match self.params.get("slack") {
             Some(ref expr) if expr_bool_lit(&expr) == Some(true) => {
-                let re = Regex::new(r"([,:;])\s*").unwrap();
+                let re = Regex::new(r"([,:;])\s+").unwrap();
                 let s = re.replace_all(&self.regex, |cap: &Captures| format!(r"{}\s*", &cap[1]));
                 self.regex = s.to_string();
             }
@@ -355,7 +355,11 @@ mod tests {
     fn test_slack_mode() {
         let mut re_attr = reattributes_with_mode(r"Vec\({a}, {b}\)", "slack");
         re_attr.apply_slack();
-        assert_eq!(re_attr.regex, r"Vec\({a},\s*{b}\)")
+        assert_eq!(re_attr.regex, r"Vec\({a},\s*{b}\)");
+
+        let mut re_attr = reattributes_with_mode(r"Vec\({a},ax {b}\)", "slack");
+        re_attr.apply_slack();
+        assert_eq!(re_attr.regex, r"Vec\({a},ax {b}\)");
     }
 
     fn reattributes_with_mode(s: &str, mode: &str) -> ReAttribute {
