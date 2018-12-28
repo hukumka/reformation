@@ -240,9 +240,42 @@ impl ReAttribute {
     fn apply_slack(&mut self) {
         match self.params.get("slack") {
             Some(ref expr) if expr_bool_lit(&expr) == Some(true) => {
+                /*
                 let re = Regex::new(r"([,:;])\s+").unwrap();
                 let s = re.replace_all(&self.regex, |cap: &Captures| format!(r"{}\s*", &cap[1]));
                 self.regex = s.to_string();
+                */
+                let mut escape = false;
+                let mut is_braced = false;
+                let mut res = String::new();
+                let mut iter = self.regex.chars().peekable();
+
+                let mut slack = None;
+
+                while let Some(c) = iter.next(){
+                    if slack.is_some() && c == ' '{
+                        // pass
+                    }else if slack.is_some(){
+                        res.push_str(r"\s*");
+                        res.push(c);
+                        slack = None;
+                    }else{
+                        res.push(c);
+                    }
+                    if escape{
+                        escape = false;
+                    }else if c == '\\'{
+                        escape = true;
+                    }else if c == '['{
+                        is_braced = true;
+                    }else if c == ']'{
+                        is_braced = false;
+                    }else if ";,:".contains(c) && iter.peek() == Some(&' ') && !is_braced{
+                        slack = Some(c);
+
+                    }
+                }
+                self.regex = res;
             }
             _ => {}
         }
@@ -360,6 +393,19 @@ mod tests {
         let mut re_attr = reattributes_with_mode(r"Vec\({a},ax {b}\)", "slack");
         re_attr.apply_slack();
         assert_eq!(re_attr.regex, r"Vec\({a},ax {b}\)");
+
+        // slack mode should not be applied to characters in [] groups
+        let mut re_attr = reattributes_with_mode(r"{a}[, ]{b}", "slack");
+        re_attr.apply_slack();
+        assert_eq!(re_attr.regex, r"{a}[, ]{b}");
+
+        let mut re_attr = reattributes_with_mode(r"{a}\[, \]{b}", "slack");
+        re_attr.apply_slack();
+        assert_eq!(re_attr.regex, r"{a}\[,\s*\]{b}");
+
+        let mut re_attr = reattributes_with_mode(r"{a}(, |; ){b}", "slack");
+        re_attr.apply_slack();
+        assert_eq!(re_attr.regex, r"{a}(,\s*|;\s*){b}");
     }
 
     fn reattributes_with_mode(s: &str, mode: &str) -> ReAttribute {
