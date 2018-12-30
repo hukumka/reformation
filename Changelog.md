@@ -1,6 +1,7 @@
 ### 0.2.3
 + Add slack mode
 + Implement Reformation for char
++ Closing on enum support
 
 ### 0.2.2
 + Auto replacement of capturing groups with non-capturing

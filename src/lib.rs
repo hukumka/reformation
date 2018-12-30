@@ -113,6 +113,35 @@
 //! }
 //! ```
 //!
+//! ## Enum support
+//! Current enum supports only following pattern: `r"(variant1|variant2|variant_with_value\({}\)|other_variant_with_value{})"`
+//! ```
+//! use reformation::Reformation;
+//!
+//! #[derive(Reformation, Eq, PartialEq, Debug)]
+//! #[reformation(r"(Queen\({}\)|Worker\({}\)|Warrior)")]
+//! enum Ant{
+//!     Queen(String),
+//!     Worker(i32),
+//!     Warrior
+//! }
+//!
+//! fn main(){
+//!     let queen: Ant = "Queen(We are swarm)".parse().unwrap();
+//!     assert_eq!(queen, Ant::Queen("We are swarm".to_string()));
+//!
+//!     let worker: Ant = "Worker(900000)".parse().unwrap();
+//!     assert_eq!(worker, Ant::Worker(900000));
+//!
+//!     let warrior: Ant = "Warrior".parse().unwrap();
+//!     assert_eq!(warrior, Ant::Warrior);
+//! }
+//! ```
+//!
+//! Currently there is no way to use common prefix/suffix for all variants other then specifying
+//! it for every variant.
+//! Also, in current version modes does not apply to enums.
+//!
 //! ## Extra examples
 //!
 //! Format string behaves as regular expression, so special symbols needs to be escaped.

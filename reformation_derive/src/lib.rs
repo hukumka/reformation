@@ -19,9 +19,9 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::Expr;
 use syn::{AttrStyle, Attribute};
-use syn::{Data, DeriveInput, Field, Fields};
+use syn::{Data, DeriveInput, DataStruct, DataEnum, Field, Fields};
 use syn::{GenericParam, Generics};
-use syn::{Ident, Type};
+use syn::{Type, Ident};
 
 #[proc_macro_derive(Reformation, attributes(reformation))]
 pub fn reformation_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -36,7 +36,7 @@ pub fn reformation_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStr
 fn reformation_derive_do(mut ds: DeriveInput) -> syn::Result<TokenStream> {
     add_trait_bounds(&mut ds.generics);
     let attributes = get_attributes(&ds)?;
-    impl_trait(attributes, &ds)
+    impl_trait(attributes, ds)
 }
 
 fn get_attributes(ds: &DeriveInput) -> syn::Result<ReAttribute> {
@@ -75,63 +75,156 @@ fn get_re_parse_attribute(a: &Attribute) -> Option<&TokenStream> {
     }
 }
 
-fn impl_trait(mut re: ReAttribute, ds: &DeriveInput) -> syn::Result<TokenStream> {
-    re.apply_no_regex();
-    re.apply_slack();
+fn impl_trait(re: ReAttribute, ds: DeriveInput) -> syn::Result<TokenStream> {
+    let from_str = quote_impl_from_str(&ds);
+
+    let generics = &ds.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let name = &ds.ident;
+
+    let reformation_body = match ds.data {
+        Data::Struct(struct_) => {
+            impl_struct(struct_, re)
+        },
+        Data::Enum(enum_) => {
+            impl_enum(name, enum_, re)
+        }
+        _ => {
+            unimplemented!()
+        }
+    }?;
+
+    Ok(
+        quote! {
+            impl #impl_generics ::reformation::Reformation for #name #ty_generics #where_clause{
+                #reformation_body
+            }
+
+            #from_str
+        }
+    )
+}
+
+fn impl_enum(ident: &Ident, enum_: DataEnum, mut re: ReAttribute)->syn::Result<TokenStream>{
+    re.prepare_enum()?;
+    let re_str = re.regex;
+    let (variants, types): (Vec<_>, Vec<_>) = enum_.variants.iter()
+        .map(|x|{
+            let values: Vec<_> = x.fields.iter()
+                .map(|x| &x.ty)
+                .collect();
+            (&x.ident, values)
+        }).unzip();
+
+    let types_flat = types.iter().flatten();
+
+    let types1 = &types;
+
+    let variants: Vec<_> = variants.iter()
+        .zip(&types)
+        .map(|(v, t)| quote_variant_from_capture(ident, v, &t))
+        .collect();
+
+    Ok(quote!{
+        fn regex_str()->&'static str{
+            ::reformation::lazy_static!{
+                static ref STR: String = {
+                    format!(#re_str, #(<#types_flat as ::reformation::Reformation>::regex_str()),*)
+                };
+            }
+            &STR
+        }
+
+        fn captures_count()->usize{
+            let mut count = 1;
+            #(
+                count += 1;
+                #(
+                    count += <#types1 as ::reformation::Reformation>::captures_count();
+                )*
+            )*
+            count
+        }
+
+        fn from_captures(captures: &::reformation::Captures, mut offset: usize)->Result<Self, Box<std::error::Error>>{
+            // check if capture group of variant is present until such is found;
+            #(
+                #variants
+            )*
+
+            // TODO: gracefull error, or prove that this is unreachable!()
+            panic!("No variants match")
+        }
+    })
+}
+
+fn quote_variant_from_capture(ident: &Ident, variant: &Ident, values: &[&Type])->TokenStream{
+    let values1 = values;
+    let values2 = values;
+    let values3 = values;
+    if values.is_empty(){
+        quote!{
+            if captures.get(offset).is_some(){
+                return Ok(#ident::#variant);
+            }else{
+                offset += 1;
+            }
+        }
+    }else{
+        quote!{
+            if captures.get(offset).is_some(){
+                offset += 1;
+                return Ok(#ident::#variant(
+                    #(
+                        {
+                            let res = <#values1 as ::reformation::Reformation>::from_captures(captures, offset)?;
+                            offset += <#values2 as ::reformation::Reformation>::captures_count();
+                            res
+                        }
+                    ),*
+                ));
+            }else{
+                offset += 1;
+                #(
+                    offset += <#values3 as ::reformation::Reformation>::captures_count();
+                )*
+            }
+        }
+    }
+}
+
+fn impl_struct(struct_: DataStruct, mut re: ReAttribute)->syn::Result<TokenStream>{
+    re.prepare_struct();
 
     let re_str = re.regex;
     let args = arguments(&re_str);
-    let fields = get_fields(&ds)?;
+    let fields = get_fields(&struct_)?;
 
+    // split fields into two categories:
+    // items to be parsed from string
     let (items_to_parse, types_to_parse): (Vec<_>, Vec<_>) = fields
         .iter()
         .map(|x| (x.ident.as_ref().unwrap(), &x.ty))
         .filter(|(ident, _ty)| args.contains(&ident.to_string()))
         .unzip();
-
+    // items to be initialized from Default trait
     let (items_default, types_default): (Vec<_>, Vec<_>) = fields
         .iter()
         .map(|x| (x.ident.as_ref().unwrap(), &x.ty))
         .filter(|(ident, _ty)| !args.contains(&ident.to_string()))
         .unzip();
 
-    let generics = &ds.generics;
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let name = &ds.ident;
-    let re_parse_body = quote_impl_reformation(
-        &re_str,
-        (&items_to_parse, &types_to_parse),
-        (&items_default, &types_default),
-    );
-    let from_str_body = quote_impl_from_str(&ds);
-
-    Ok(quote! {
-        impl #impl_generics ::reformation::Reformation for #name #ty_generics #where_clause{
-            #re_parse_body
-        }
-
-        #from_str_body
-    })
-}
-
-fn quote_impl_reformation(
-    re_str: &str,
-    items_to_parse: (&[&Ident], &[&Type]),
-    items_default: (&[&Ident], &[&Type]),
-) -> TokenStream {
-    let (names, types) = items_to_parse;
-    let (names_default, types_default) = items_default;
 
     // hack over unability of quote to use same variable multiple times
-    let types1 = types;
-    let types2 = types;
-    let types3 = types;
-    let types4 = types;
+    let types1 = &types_to_parse;
+    let types2 = &types_to_parse;
+    let types3 = &types_to_parse;
+    let types4 = &types_to_parse;
 
-    let names1 = names;
-    let names2 = names;
-    let names3 = names;
-    quote! {
+    let names1 = &items_to_parse;
+    let names2 = &items_to_parse;
+    let names3 = &items_to_parse;
+    Ok(quote! {
         fn regex_str()->&'static str{
             ::reformation::lazy_static!{
                 static ref STR: String = {
@@ -154,10 +247,10 @@ fn quote_impl_reformation(
             )*
             Ok(Self{
                 #(#names3,)*
-                #(#names_default: <#types_default as Default>::default()),*
+                #(#items_default: <#types_default as Default>::default()),*
             })
         }
-    }
+    })
 }
 
 fn quote_impl_from_str(ds: &DeriveInput) -> TokenStream {
@@ -191,22 +284,15 @@ fn quote_impl_from_str(ds: &DeriveInput) -> TokenStream {
     }
 }
 
-fn get_fields(struct_: &DeriveInput) -> syn::Result<Vec<&Field>> {
-    if let Data::Struct(ref ds) = struct_.data {
-        let fields: Vec<_> = ds.fields.iter().collect();
+fn get_fields(ds: &DataStruct) -> syn::Result<Vec<&Field>> {
+    let fields: Vec<_> = ds.fields.iter().collect();
 
-        if let Fields::Named(_) = ds.fields {
-            Ok(fields)
-        } else {
-            Err(syn::Error::new_spanned(
-                &ds.fields,
-                "regex_parse supports only structs with named fields.",
-            ))
-        }
+    if let Fields::Named(_) = ds.fields {
+        Ok(fields)
     } else {
         Err(syn::Error::new_spanned(
-            &struct_,
-            "regex_parse supports only structs.",
+            &ds.fields,
+            "regex_parse supports only structs with named fields.",
         ))
     }
 }
@@ -217,6 +303,55 @@ struct ReAttribute {
 }
 
 impl ReAttribute {
+    fn prepare_enum(&mut self) ->syn::Result<()>{
+        // TODO: check for correctness
+        let mut bracket_depth = 0;
+        let mut variants = vec![];
+        let mut current_variant = String::new();
+
+        let mut iter = self.regex.chars().peekable();
+        while let Some(x) = iter.next(){
+            if bracket_depth == 0 && x == '('{
+                bracket_depth = 1;
+                continue;
+            }
+            if bracket_depth == 1 && x == ')'{
+                bracket_depth = 0;
+                continue;
+            }
+            if "|)".contains(x) && bracket_depth == 1{
+                variants.push(current_variant);
+                current_variant = String::new();
+            }else{
+                current_variant.push(x);
+                // replace capture groups with no capturing
+                if x == '(' && iter.peek() != Some(&'?'){
+                    current_variant.push_str("?:");
+                }
+                if "({[".contains(x){
+                    bracket_depth += 1;
+                }
+                if ")}]".contains(x){
+                    bracket_depth -= 1;
+                }
+                if x == '\\'{
+                    if let Some(c) = iter.next(){
+                        current_variant.push(c);
+                    }
+                }
+            }
+        }
+        variants.push(current_variant);
+        self.regex = "(?:(".to_string() + &variants.join(")|(") + "))";
+
+        Ok(())
+    }
+
+    fn prepare_struct(&mut self){
+        self.apply_no_regex();
+        self.apply_slack();
+    }
+
     /// if param no_regex specified, escape all characters, related to regular expressions
     fn apply_no_regex(&mut self) {
         match self.params.get("no_regex") {
@@ -362,6 +497,16 @@ fn arguments(format_string: &str) -> HashSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prepare_enum(){
+        let mut re_attr = ReAttribute{
+            regex: r"(a={}|b={}|{}\|)".to_string(),
+            params: HashMap::new(),
+        };
+        re_attr.prepare_enum().unwrap();
+        assert_eq!(re_attr.regex, r"(?:(a={})|(b={})|({}\|))");
+    }
 
     #[test]
     fn test_no_regex_mode() {
