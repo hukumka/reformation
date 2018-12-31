@@ -2,33 +2,31 @@ use reformation::Reformation;
 
 #[derive(Reformation, Debug)]
 #[reformation(r"(red|green|grey\({}\)|yellow|blue={}, {})")]
-enum Color{
+enum Color {
     Red,
     Green,
     Grey(i32),
     Yellow,
-    Blue(i32, i32)
+    Blue(i32, i32),
 }
 
-
 #[derive(Reformation, Debug, PartialEq)]
-#[reformation(r"(Bird({})|Plane({}))", no_regex=true)]
-enum Superman{
+#[reformation(r"(Bird({})|Plane({}))", no_regex = true)]
+enum Superman {
     Bird(f32),
     Plane(f32),
 }
 
 #[derive(Reformation, Debug, PartialEq)]
-#[reformation(r"([]|[{}]|[{}, {}]|[{}, {}, {}])", no_regex=true, slack=true)]
-enum MiniList{
+#[reformation(r"([]|[{}]|[{}, {}]|[{}, {}, {}])", no_regex = true, slack = true)]
+enum MiniList {
     Zero,
     One(i32),
     Two(i32, i32),
     Three(i32, i32, i32),
 }
 
-
-fn main(){
+fn main() {
     let c: Color = "grey(64)".parse().unwrap();
     println!("{:?}", c);
 

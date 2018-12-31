@@ -13,16 +13,16 @@ use crate::syn_helpers::*;
 
 use std::collections::{HashMap, HashSet};
 
-use proc_macro2::{TokenStream, Span};
+use proc_macro2::{Span, TokenStream};
 use regex::{Captures, Regex};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::Expr;
 use syn::spanned::Spanned;
+use syn::Expr;
 use syn::{AttrStyle, Attribute};
-use syn::{Data, DeriveInput, DataStruct, DataEnum, Field, Fields};
+use syn::{Data, DataEnum, DataStruct, DeriveInput, Field, Fields};
 use syn::{GenericParam, Generics};
-use syn::{Type, Ident};
+use syn::{Ident, Type};
 
 #[proc_macro_derive(Reformation, attributes(reformation))]
 pub fn reformation_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -84,49 +84,43 @@ fn impl_trait(re: ReAttribute, ds: DeriveInput) -> syn::Result<TokenStream> {
     let name = &ds.ident;
 
     let reformation_body = match ds.data {
-        Data::Struct(struct_) => {
-            impl_struct(struct_, re)
-        },
-        Data::Enum(enum_) => {
-            impl_enum(name, enum_, re)
-        }
-        _ => {
-            unimplemented!()
-        }
+        Data::Struct(struct_) => impl_struct(&struct_, re),
+        Data::Enum(enum_) => impl_enum(name, &enum_, re),
+        _ => unimplemented!(),
     }?;
 
-    Ok(
-        quote! {
-            impl #impl_generics ::reformation::Reformation for #name #ty_generics #where_clause{
-                #reformation_body
-            }
-
-            #from_str
+    Ok(quote! {
+        impl #impl_generics ::reformation::Reformation for #name #ty_generics #where_clause{
+            #reformation_body
         }
-    )
+
+        #from_str
+    })
 }
 
-fn impl_enum(ident: &Ident, enum_: DataEnum, mut re: ReAttribute)->syn::Result<TokenStream>{
+fn impl_enum(ident: &Ident, enum_: &DataEnum, mut re: ReAttribute) -> syn::Result<TokenStream> {
     re.prepare_enum()?;
     let re_str = re.regex;
-    let (variants, types): (Vec<_>, Vec<_>) = enum_.variants.iter()
-        .map(|x|{
-            let values: Vec<_> = x.fields.iter()
-                .map(|x| &x.ty)
-                .collect();
+    let (variants, types): (Vec<_>, Vec<_>) = enum_
+        .variants
+        .iter()
+        .map(|x| {
+            let values: Vec<_> = x.fields.iter().map(|x| &x.ty).collect();
             (&x.ident, values)
-        }).unzip();
+        })
+        .unzip();
 
     let types_flat = types.iter().flatten();
 
     let types1 = &types;
 
-    let variants: Vec<_> = variants.iter()
+    let variants: Vec<_> = variants
+        .iter()
         .zip(&types)
         .map(|(v, t)| quote_variant_from_capture(ident, v, &t))
         .collect();
 
-    Ok(quote!{
+    Ok(quote! {
         fn regex_str()->&'static str{
             ::reformation::lazy_static!{
                 static ref STR: String = {
@@ -159,20 +153,20 @@ fn impl_enum(ident: &Ident, enum_: DataEnum, mut re: ReAttribute)->syn::Result<T
     })
 }
 
-fn quote_variant_from_capture(ident: &Ident, variant: &Ident, values: &[&Type])->TokenStream{
+fn quote_variant_from_capture(ident: &Ident, variant: &Ident, values: &[&Type]) -> TokenStream {
     let values1 = values;
     let values2 = values;
     let values3 = values;
-    if values.is_empty(){
-        quote!{
+    if values.is_empty() {
+        quote! {
             if captures.get(offset).is_some(){
                 return Ok(#ident::#variant);
             }else{
                 offset += 1;
             }
         }
-    }else{
-        quote!{
+    } else {
+        quote! {
             if captures.get(offset).is_some(){
                 offset += 1;
                 return Ok(#ident::#variant(
@@ -194,12 +188,12 @@ fn quote_variant_from_capture(ident: &Ident, variant: &Ident, values: &[&Type])-
     }
 }
 
-fn impl_struct(struct_: DataStruct, mut re: ReAttribute)->syn::Result<TokenStream>{
+fn impl_struct(struct_: &DataStruct, mut re: ReAttribute) -> syn::Result<TokenStream> {
     re.prepare_struct();
 
     let re_str = re.regex;
     let args = arguments(&re_str);
-    let fields = get_fields(&struct_)?;
+    let fields = get_fields(struct_)?;
 
     // split fields into two categories:
     // items to be parsed from string
@@ -214,7 +208,6 @@ fn impl_struct(struct_: DataStruct, mut re: ReAttribute)->syn::Result<TokenStrea
         .map(|x| (x.ident.as_ref().unwrap(), &x.ty))
         .filter(|(ident, _ty)| !args.contains(&ident.to_string()))
         .unzip();
-
 
     // hack over unability of quote to use same variable multiple times
     let types1 = &types_to_parse;
@@ -305,10 +298,11 @@ struct ReAttribute {
 }
 
 impl ReAttribute {
-    fn prepare_enum(&mut self) ->syn::Result<()>{
+    fn prepare_enum(&mut self) -> syn::Result<()> {
         // TODO: check for correctness
         let variants = Self::enum_variants(self.span, &self.regex)?;
-        let variants: Vec<_> = variants.iter()
+        let variants: Vec<_> = variants
+            .iter()
             .map(|x| self.apply_no_regex(x))
             .map(|x| self.apply_slack(&x))
             .collect();
@@ -316,48 +310,54 @@ impl ReAttribute {
         Ok(())
     }
 
-    fn enum_variants(span: Span, s: &str)->syn::Result<Vec<String>>{
+    fn enum_variants(span: Span, s: &str) -> syn::Result<Vec<String>> {
         let mut variants = vec![];
         let mut current_variant = String::new();
 
         let mut iter = s.chars().peekable();
 
-        if iter.next() != Some('('){
-            return Err(syn::Error::new(span, "Enum format string must be r\"(variant1|...|variantN)\""));
+        if iter.next() != Some('(') {
+            return Err(syn::Error::new(
+                span,
+                "Enum format string must be r\"(variant1|...|variantN)\"",
+            ));
         }
         let mut bracket_depth = 1;
 
-        while let Some(x) = iter.next(){
-            if bracket_depth == 1 && x == ')'{
+        while let Some(x) = iter.next() {
+            if bracket_depth == 1 && x == ')' {
                 bracket_depth = 0;
                 break;
             }
-            if '|' == x && bracket_depth == 1{
+            if '|' == x && bracket_depth == 1 {
                 variants.push(current_variant);
                 current_variant = String::new();
-            }else{
+            } else {
                 current_variant.push(x);
-                if "({[".contains(x){
+                if "({[".contains(x) {
                     bracket_depth += 1;
                 }
-                if ")}]".contains(x){
+                if ")}]".contains(x) {
                     bracket_depth -= 1;
                 }
-                if x == '\\'{
-                    if let Some(c) = iter.next(){
+                if x == '\\' {
+                    if let Some(c) = iter.next() {
                         current_variant.push(c);
                     }
                 }
             }
         }
-        if iter.next() != None || bracket_depth > 0{
-            return Err(syn::Error::new(span, "Enum format string must be r\"(variant1|...|variantN)\""));
+        if iter.next() != None || bracket_depth > 0 {
+            return Err(syn::Error::new(
+                span,
+                "Enum format string must be r\"(variant1|...|variantN)\"",
+            ));
         }
         variants.push(current_variant);
         Ok(variants)
     }
 
-    fn prepare_struct(&mut self){
+    fn prepare_struct(&mut self) {
         self.regex = self.apply_no_regex(&self.regex);
         self.regex = self.apply_slack(&self.regex);
     }
@@ -384,18 +384,14 @@ impl ReAttribute {
         }
     }
 
-    fn apply_slack(&self, s: &str) -> String{
+    fn apply_slack(&self, s: &str) -> String {
         match self.params.get("slack") {
-            Some(ref expr) if expr_bool_lit(&expr) == Some(true) => {
-                Self::slack(s)
-            }
-            _ => {
-                s.to_string()
-            }
+            Some(ref expr) if expr_bool_lit(&expr) == Some(true) => Self::slack(s),
+            _ => s.to_string(),
         }
     }
 
-    fn slack(s: &str) -> String{
+    fn slack(s: &str) -> String {
         /*
         let re = Regex::new(r"([,:;])\s+").unwrap();
         let s = re.replace_all(&self.regex, |cap: &Captures| format!(r"{}\s*", &cap[1]));
@@ -441,12 +437,12 @@ impl Parse for ReAttribute {
         let params: Punctuated<Expr, Token![,]> = content.parse_terminated(Expr::parse)?;
         let mut iter = params.pairs();
 
-        let expr = iter.next()
-            .ok_or_else(|| syn::Error::new_spanned(&params, "Expected format string"))?
-            .value().clone();
+        let expr = iter
+            .next()
+            .ok_or_else(|| syn::Error::new_spanned(&params, "Expected format string"))?;
+        let expr = expr.value();
 
-
-        let regex = get_regex_str(&expr)?;
+        let regex = get_regex_str(expr)?;
         let span = expr.span();
 
         let params: syn::Result<HashMap<_, _>> = iter
@@ -522,8 +518,8 @@ mod tests {
     use proc_macro2::Span;
 
     #[test]
-    fn prepare_enum(){
-        let mut re_attr = ReAttribute{
+    fn prepare_enum() {
+        let mut re_attr = ReAttribute {
             span: Span::call_site(),
             regex: r"(a={}|b={}|{}\|)".to_string(),
             params: HashMap::new(),
