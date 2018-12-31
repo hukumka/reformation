@@ -16,7 +16,11 @@
  + floats: `f32` `f64`
  + `String`
  + `char`
+ 
+ It can be used to parse:
+ 
 
+## Structs
  ```rust
  use reformation::Reformation;
 
@@ -41,93 +45,38 @@
  }
  ```
 
- ## Modes
+## Tuple Structs
 
- Order, in which modes are specified does not matter.
+```
+use reformation::Reformation;
 
- ### no_regex
+#[derive(Reformation)]
+#[reformation(r"{} -> {}")]
+struct Predicate(Empty, char);
 
- Makes format string behave as regular string (in contrast with being regular expression),
- by escaping all special regex characters.
+#[derive(Reformation, Debug, PartialEq)]
+#[reformation(r"Empty")]
+struct Empty;
 
- ```rust
- use reformation::Reformation;
+fn main(){
+    let p: Predicate = "Empty -> X".parse().unwrap();
+    assert_eq!(p.0, Empty);
+    assert_eq!(p.1, 'X');
+}
+```
 
- #[derive(Reformation, Debug)]
- #[reformation("Vec{{{x}, {y}}}", no_regex=true)]
- struct Vec{
-     x: i32,
-     y: i32,
- }
+## Enums
+Current enum supports only following pattern: `r"(variant1|variant2|variant_with_value\({}\)|other_variant_with_value{})"`
+```
+use reformation::Reformation;
 
- fn main(){
-     let v: Vec = "Vec{-1, 1}".parse().unwrap();
-     assert_eq!(v.x, -1);
-     assert_eq!(v.y, 1);
- }
- ```
-
- ### slack
-
- Allow arbitrary number of spaces after separators: ',', ';', ':'. For separator to be recognized
- as slack, it must be followed by at least one space in format string.
-
- ```rust
- use reformation::Reformation;
-
- #[derive(Reformation, Debug)]
- #[reformation(r"Vec\{{{x}, {y}\}}", slack=true)]
- struct Vec{
-     x: i32,
-     y: i32,
- }
-
- fn main(){
-     let v: Vec = "Vec{-1,1}".parse().unwrap();
-     assert_eq!(v.x, -1);
-     assert_eq!(v.y, 1);
-
-     let r: Vec = "Vec{15,   2}".parse().unwrap();
-     assert_eq!(r.x, 15);
-     assert_eq!(r.y, 2);
- }
- ```
-
- Combination of no_regex and slack behaves as expected:
-
- ```rust
- use reformation::Reformation;
-
- #[derive(Reformation, Debug)]
- #[reformation(r"Vec({x}; {y})", slack=true, no_regex=true)]
- struct Vec{
-     x: i32,
-     y: i32,
- }
-
- fn main(){
-     let v: Vec = "Vec(-1;1)".parse().unwrap();
-     assert_eq!(v.x, -1);
-     assert_eq!(v.y, 1);
-
-     let r: Vec = "Vec(15;   2)".parse().unwrap();
-     assert_eq!(r.x, 15);
-     assert_eq!(r.y, 2);
- }
- ```
- 
- ## Enum support
- Current enum supports only following pattern: `r"(variant1|variant2|variant_with_value\({}\)|other_variant_with_value{})"`
- ```
- use reformation::Reformation;
-
- #[derive(Reformation, Eq, PartialEq, Debug)]
- #[reformation(r"(Queen\({}\)|Worker\({}\)|Warrior)")]
- enum Ant{
-     Queen(String),
-     Worker(i32),
-     Warrior
- }
+#[derive(Reformation, Eq, PartialEq, Debug)]
+#[reformation(r"(Queen\({}\)|Worker\({}\)|Warrior)")]
+enum Ant{
+    Queen(String),
+    Worker(i32),
+    Warrior
+}
 
  fn main(){
      let queen: Ant = "Queen(We are swarm)".parse().unwrap();
@@ -140,4 +89,81 @@
      assert_eq!(warrior, Ant::Warrior);
  }
  ```
+
+## Modes
+
+There are some modes, that can be applied to regular expression.
+
+Order, in which modes are specified does not matter.
+
+### no_regex
+
+Makes format string behave as regular string (in contrast with being regular expression),
+by escaping all special regex characters.
+
+```rust
+use reformation::Reformation;
+
+#[derive(Reformation, Debug)]
+#[reformation("Vec{{{x}, {y}}}", no_regex=true)]
+struct Vec{
+    x: i32,
+    y: i32,
+}
+
+fn main(){
+    let v: Vec = "Vec{-1, 1}".parse().unwrap();
+    assert_eq!(v.x, -1);
+    assert_eq!(v.y, 1);
+}
+```
+
+### slack
+
+Allow arbitrary number of spaces after separators: ',', ';', ':'. For separator to be recognized
+as slack, it must be followed by at least one space in format string.
+
+```rust
+use reformation::Reformation;
+
+#[derive(Reformation, Debug)]
+#[reformation(r"Vec\{{{x}, {y}\}}", slack=true)]
+struct Vec{
+    x: i32,
+    y: i32,
+}
+
+fn main(){
+    let v: Vec = "Vec{-1,1}".parse().unwrap();
+    assert_eq!(v.x, -1);
+    assert_eq!(v.y, 1);
+
+    let r: Vec = "Vec{15,   2}".parse().unwrap();
+    assert_eq!(r.x, 15);
+    assert_eq!(r.y, 2);
+}
+```
+
+Combination of no_regex and slack behaves as expected:
+
+```rust
+use reformation::Reformation;
+
+#[derive(Reformation, Debug)]
+#[reformation(r"Vec({x}; {y})", slack=true, no_regex=true)]
+struct Vec{
+    x: i32,
+    y: i32,
+}
+
+fn main(){
+    let v: Vec = "Vec(-1;1)".parse().unwrap();
+    assert_eq!(v.x, -1);
+    assert_eq!(v.y, 1);
+
+    let r: Vec = "Vec(15;   2)".parse().unwrap();
+    assert_eq!(r.x, 15);
+    assert_eq!(r.y, 2);
+}
+```
 
