@@ -14,6 +14,8 @@
 //! + `String`
 //! + `char`
 //!
+//! ## Structs
+//!
 //! ```
 //! use reformation::Reformation;
 //!
@@ -35,6 +37,51 @@
 //!     assert_eq!(date.day, 22);
 //!     assert_eq!(date.hour, 20);
 //!     assert_eq!(date.minute, 23);
+//! }
+//! ```
+//!
+//! ## Tuple Structs
+//!
+//! ```
+//! use reformation::Reformation;
+//!
+//! #[derive(Reformation)]
+//! #[reformation(r"{} -> {}")]
+//! struct Predicate(Empty, char);
+//!
+//! #[derive(Reformation, Debug, PartialEq)]
+//! #[reformation(r"Empty")]
+//! struct Empty;
+//!
+//! fn main(){
+//!     let p: Predicate = "Empty -> X".parse().unwrap();
+//!     assert_eq!(p.0, Empty);
+//!     assert_eq!(p.1, 'X');
+//! }
+//! ```
+//!
+//! ## Enums
+//! Current enum supports only following pattern: `r"(variant1|variant2|variant_with_value\({}\)|other_variant_with_value{})"`
+//! ```
+//! use reformation::Reformation;
+//!
+//! #[derive(Reformation, Eq, PartialEq, Debug)]
+//! #[reformation(r"(Queen\({}\)|Worker\({}\)|Warrior)")]
+//! enum Ant{
+//!     Queen(String),
+//!     Worker(i32),
+//!     Warrior
+//! }
+//!
+//! fn main(){
+//!     let queen: Ant = "Queen(We are swarm)".parse().unwrap();
+//!     assert_eq!(queen, Ant::Queen("We are swarm".to_string()));
+//!
+//!     let worker: Ant = "Worker(900000)".parse().unwrap();
+//!     assert_eq!(worker, Ant::Worker(900000));
+//!
+//!     let warrior: Ant = "Warrior".parse().unwrap();
+//!     assert_eq!(warrior, Ant::Warrior);
 //! }
 //! ```
 //!
@@ -112,34 +159,6 @@
 //!     assert_eq!(r.y, 2);
 //! }
 //! ```
-//!
-//! ## Enum support
-//! Current enum supports only following pattern: `r"(variant1|variant2|variant_with_value\({}\)|other_variant_with_value{})"`
-//! ```
-//! use reformation::Reformation;
-//!
-//! #[derive(Reformation, Eq, PartialEq, Debug)]
-//! #[reformation(r"(Queen\({}\)|Worker\({}\)|Warrior)")]
-//! enum Ant{
-//!     Queen(String),
-//!     Worker(i32),
-//!     Warrior
-//! }
-//!
-//! fn main(){
-//!     let queen: Ant = "Queen(We are swarm)".parse().unwrap();
-//!     assert_eq!(queen, Ant::Queen("We are swarm".to_string()));
-//!
-//!     let worker: Ant = "Worker(900000)".parse().unwrap();
-//!     assert_eq!(worker, Ant::Worker(900000));
-//!
-//!     let warrior: Ant = "Warrior".parse().unwrap();
-//!     assert_eq!(warrior, Ant::Warrior);
-//! }
-//! ```
-//!
-//! Currently there is no way to use common prefix/suffix for all variants other then specifying
-//! it for every variant.
 //!
 //! ## Extra examples
 //!
@@ -237,7 +256,7 @@ group_impl_parse_primitive! {r"(\d+)", u8, u16, u32, u64, u128, usize}
 group_impl_parse_primitive! {r"([\+-]?\d+)", i8, i16, i32, i64, i128, isize}
 group_impl_parse_primitive! {r"((?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?)", f32, f64}
 group_impl_parse_primitive! {r"(.*)", String}
-group_impl_parse_primitive! {r"(?)", char}
+group_impl_parse_primitive! {r"(.)", char}
 
 /// Creates function for parsing tuple of values from
 /// strings corresponding to given template.

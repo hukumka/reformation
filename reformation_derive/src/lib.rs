@@ -84,7 +84,13 @@ fn impl_trait(re: ReAttribute, ds: DeriveInput) -> syn::Result<TokenStream> {
     let name = &ds.ident;
 
     let reformation_body = match ds.data {
-        Data::Struct(struct_) => impl_struct(&struct_, re),
+        Data::Struct(struct_) => {
+            match struct_.fields {
+                Fields::Named(_) => impl_struct(&struct_, re),
+                Fields::Unnamed(_) => impl_tuple_struct(name, &struct_, re),
+                Fields::Unit => impl_empty_struct(name, re),
+            }
+        },
         Data::Enum(enum_) => impl_enum(name, &enum_, re),
         _ => unimplemented!(),
     }?;
@@ -188,6 +194,66 @@ fn quote_variant_from_capture(ident: &Ident, variant: &Ident, values: &[&Type]) 
     }
 }
 
+fn impl_empty_struct(ident: &Ident, mut re: ReAttribute) -> syn::Result<TokenStream>{
+    re.prepare_struct();
+    let re_str = re.regex;
+
+    Ok(quote!{
+        fn regex_str()->&'static str{
+            #re_str
+        }
+
+        fn captures_count()->usize{
+            0
+        }
+
+        fn from_captures(captures: &::reformation::Captures, mut offset: usize) -> Result<Self, Box<std::error::Error>>{
+            Ok(#ident)
+        }
+    })
+}
+
+fn impl_tuple_struct(ident: &Ident, struct_: &DataStruct, mut re: ReAttribute) -> syn::Result<TokenStream>{
+    re.prepare_struct();
+    let re_str = re.regex;
+
+    let types: Vec<_> = struct_.fields.iter()
+        .map(|x| &x.ty)
+        .collect();
+
+    let types1 = &types;
+    let types2 = &types;
+    let types3 = &types;
+    let types4 = &types;
+
+    Ok(quote!{
+        fn regex_str()->&'static str{
+            ::reformation::lazy_static!{
+                static ref STR: String = {
+                    format!(#re_str, #(<#types1 as ::reformation::Reformation>::regex_str()),*)
+                };
+            }
+            &STR
+        }
+
+        fn captures_count()->usize{
+            let mut count = 0;
+            #(count += <#types2 as ::reformation::Reformation>::captures_count();)*
+            count
+        }
+
+        fn from_captures(captures: &::reformation::Captures, mut offset: usize) -> Result<Self, Box<std::error::Error>>{
+            Ok(#ident(
+                #({
+                    let res = <#types3 as ::reformation::Reformation>::from_captures(&captures, offset)?;
+                    offset += <#types4 as ::reformation::Reformation>::captures_count();
+                    res
+                }),*
+            ))
+        }
+    })
+}
+
 fn impl_struct(struct_: &DataStruct, mut re: ReAttribute) -> syn::Result<TokenStream> {
     re.prepare_struct();
 
@@ -250,8 +316,10 @@ fn impl_struct(struct_: &DataStruct, mut re: ReAttribute) -> syn::Result<TokenSt
 fn quote_impl_from_str(ds: &DeriveInput) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = ds.generics.split_for_impl();
     let ty_generics2 = &ty_generics;
+    let ty_generics3 = &ty_generics;
     let name = &ds.ident;
     let name2 = &ds.ident;
+    let name3 = &ds.ident;
     quote! {
 
         impl #impl_generics std::str::FromStr for #name #ty_generics #where_clause{
@@ -261,7 +329,7 @@ fn quote_impl_from_str(ds: &DeriveInput) -> TokenStream {
                 reformation::lazy_static!{
                     static ref RE: reformation::Regex = {
                         reformation::Regex::new(#name2 #ty_generics2::regex_str())
-                            .unwrap_or_else(|x| panic!("Cannot compile regex {:?}", ))
+                            .unwrap_or_else(|x| panic!("Cannot compile regex {:?}", #name3 #ty_generics3::regex_str()))
                     };
                 }
 
