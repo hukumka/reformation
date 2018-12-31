@@ -13,11 +13,12 @@ use crate::syn_helpers::*;
 
 use std::collections::{HashMap, HashSet};
 
-use proc_macro2::TokenStream;
+use proc_macro2::{TokenStream, Span};
 use regex::{Captures, Regex};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::Expr;
+use syn::spanned::Spanned;
 use syn::{AttrStyle, Attribute};
 use syn::{Data, DeriveInput, DataStruct, DataEnum, Field, Fields};
 use syn::{GenericParam, Generics};
@@ -298,6 +299,7 @@ fn get_fields(ds: &DataStruct) -> syn::Result<Vec<&Field>> {
 }
 
 struct ReAttribute {
+    span: Span,
     regex: String,
     params: HashMap<String, Expr>,
 }
@@ -305,29 +307,36 @@ struct ReAttribute {
 impl ReAttribute {
     fn prepare_enum(&mut self) ->syn::Result<()>{
         // TODO: check for correctness
-        let mut bracket_depth = 0;
+        let variants = Self::enum_variants(self.span, &self.regex)?;
+        let variants: Vec<_> = variants.iter()
+            .map(|x| self.apply_no_regex(x))
+            .map(|x| self.apply_slack(&x))
+            .collect();
+        self.regex = "(?:(".to_string() + &variants.join(")|(") + "))";
+        Ok(())
+    }
+
+    fn enum_variants(span: Span, s: &str)->syn::Result<Vec<String>>{
         let mut variants = vec![];
         let mut current_variant = String::new();
 
-        let mut iter = self.regex.chars().peekable();
+        let mut iter = s.chars().peekable();
+
+        if iter.next() != Some('('){
+            return Err(syn::Error::new(span, "Enum format string must be r\"(variant1|...|variantN)\""));
+        }
+        let mut bracket_depth = 1;
+
         while let Some(x) = iter.next(){
-            if bracket_depth == 0 && x == '('{
-                bracket_depth = 1;
-                continue;
-            }
             if bracket_depth == 1 && x == ')'{
                 bracket_depth = 0;
-                continue;
+                break;
             }
-            if "|)".contains(x) && bracket_depth == 1{
+            if '|' == x && bracket_depth == 1{
                 variants.push(current_variant);
                 current_variant = String::new();
             }else{
                 current_variant.push(x);
-                // replace capture groups with no capturing
-                if x == '(' && iter.peek() != Some(&'?'){
-                    current_variant.push_str("?:");
-                }
                 if "({[".contains(x){
                     bracket_depth += 1;
                 }
@@ -341,79 +350,87 @@ impl ReAttribute {
                 }
             }
         }
+        if iter.next() != None || bracket_depth > 0{
+            return Err(syn::Error::new(span, "Enum format string must be r\"(variant1|...|variantN)\""));
+        }
         variants.push(current_variant);
-        self.regex = "(?:(".to_string() + &variants.join(")|(") + "))";
-
-        Ok(())
+        Ok(variants)
     }
 
     fn prepare_struct(&mut self){
-        self.apply_no_regex();
-        self.apply_slack();
+        self.regex = self.apply_no_regex(&self.regex);
+        self.regex = self.apply_slack(&self.regex);
     }
 
     /// if param no_regex specified, escape all characters, related to regular expressions
-    fn apply_no_regex(&mut self) {
+    fn apply_no_regex(&self, s: &str) -> String {
         match self.params.get("no_regex") {
             Some(ref expr) if expr_bool_lit(&expr) == Some(true) => {
                 // escape '\\', '[', ']', '*', '|', '+', '?', '.', "{{"
                 let re = Regex::new(r"([\\\[\]\*\|\+\?\.\(\)\^\&]|\{\{)").unwrap();
-                let s = re.replace_all(&self.regex, |cap: &Captures| format!(r"\{}", &cap[0]));
+                let s = re.replace_all(s, |cap: &Captures| format!(r"\{}", &cap[0]));
                 // escape }} with \}}. Applied to reversed string, since they must be replaced from
                 // left to right: {}}} -> {}\}}
                 let s: String = s.chars().rev().collect();
                 let s = s.replace("}}", r"}}\");
-                self.regex = s.chars().rev().collect();
+
+                let res: String = s.chars().rev().collect();
+                res
             }
             _ => {
                 // replace () with (:?)
-                self.regex = replace_capturing_groups_with_no_capturing(&self.regex);
+                replace_capturing_groups_with_no_capturing(s)
             }
         }
     }
 
-    fn apply_slack(&mut self) {
+    fn apply_slack(&self, s: &str) -> String{
         match self.params.get("slack") {
             Some(ref expr) if expr_bool_lit(&expr) == Some(true) => {
-                /*
-                let re = Regex::new(r"([,:;])\s+").unwrap();
-                let s = re.replace_all(&self.regex, |cap: &Captures| format!(r"{}\s*", &cap[1]));
-                self.regex = s.to_string();
-                */
-                let mut escape = false;
-                let mut is_braced = false;
-                let mut res = String::new();
-                let mut iter = self.regex.chars().peekable();
-
-                let mut slack = None;
-
-                while let Some(c) = iter.next(){
-                    if slack.is_some() && c == ' '{
-                        // pass
-                    }else if slack.is_some(){
-                        res.push_str(r"\s*");
-                        res.push(c);
-                        slack = None;
-                    }else{
-                        res.push(c);
-                    }
-                    if escape{
-                        escape = false;
-                    }else if c == '\\'{
-                        escape = true;
-                    }else if c == '['{
-                        is_braced = true;
-                    }else if c == ']'{
-                        is_braced = false;
-                    }else if ";,:".contains(c) && iter.peek() == Some(&' ') && !is_braced{
-                        slack = Some(c);
-
-                    }
-                }
-                self.regex = res;
+                Self::slack(s)
             }
-            _ => {}
+            _ => {
+                s.to_string()
+            }
         }
+    }
+
+    fn slack(s: &str) -> String{
+        /*
+        let re = Regex::new(r"([,:;])\s+").unwrap();
+        let s = re.replace_all(&self.regex, |cap: &Captures| format!(r"{}\s*", &cap[1]));
+        self.regex = s.to_string();
+        */
+        let mut escape = false;
+        let mut is_braced = false;
+        let mut res = String::new();
+        let mut iter = s.chars().peekable();
+
+        let mut slack = None;
+
+        while let Some(c) = iter.next() {
+            if slack.is_some() && c == ' ' {
+                // pass
+            } else if slack.is_some() {
+                res.push_str(r"\s*");
+                res.push(c);
+                slack = None;
+            } else {
+                res.push(c);
+            }
+            if escape {
+                escape = false;
+            } else if c == '\\' {
+                escape = true;
+            } else if c == '[' {
+                is_braced = true;
+            } else if c == ']' {
+                is_braced = false;
+            } else if ";,:".contains(c) && iter.peek() == Some(&' ') && !is_braced {
+                slack = Some(c);
+            }
+        }
+        res
     }
 }
 
@@ -423,10 +440,14 @@ impl Parse for ReAttribute {
         parenthesized!(content in input);
         let params: Punctuated<Expr, Token![,]> = content.parse_terminated(Expr::parse)?;
         let mut iter = params.pairs();
-        let regex = iter
-            .next()
-            .ok_or_else(|| syn::Error::new_spanned(&params, "Expected format string"))
-            .and_then(|pair| get_regex_str(pair.value()))?;
+
+        let expr = iter.next()
+            .ok_or_else(|| syn::Error::new_spanned(&params, "Expected format string"))?
+            .value().clone();
+
+
+        let regex = get_regex_str(&expr)?;
+        let span = expr.span();
 
         let params: syn::Result<HashMap<_, _>> = iter
             .map(|pair| {
@@ -439,6 +460,7 @@ impl Parse for ReAttribute {
 
         Ok(Self {
             regex,
+            span,
             params: params?,
         })
     }
@@ -497,10 +519,12 @@ fn arguments(format_string: &str) -> HashSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proc_macro2::Span;
 
     #[test]
     fn prepare_enum(){
         let mut re_attr = ReAttribute{
+            span: Span::call_site(),
             regex: r"(a={}|b={}|{}\|)".to_string(),
             params: HashMap::new(),
         };
@@ -511,7 +535,7 @@ mod tests {
     #[test]
     fn test_no_regex_mode() {
         let mut re_attr = reattributes_with_mode("Vec{{{}, {}}}", "no_regex");
-        re_attr.apply_no_regex();
+        re_attr.regex = re_attr.apply_no_regex(&re_attr.regex);
         assert_eq!(re_attr.regex, r"Vec\{{{}, {}\}}");
         assert_eq!(
             r"Vec\{(x), (y)\}",
@@ -520,7 +544,7 @@ mod tests {
 
         let s = r"\[T]/ *+* -.- (\|)(^_^)(|/) &&";
         let mut re_attr = reattributes_with_mode(s, "no_regex");
-        re_attr.apply_no_regex();
+        re_attr.regex = re_attr.apply_no_regex(&re_attr.regex);
         assert_eq!(
             re_attr.regex,
             r"\\\[T\]/ \*\+\* -\.- \(\\\|\)\(\^_\^\)\(\|/\) \&\&"
@@ -532,24 +556,24 @@ mod tests {
     #[test]
     fn test_slack_mode() {
         let mut re_attr = reattributes_with_mode(r"Vec\({a}, {b}\)", "slack");
-        re_attr.apply_slack();
+        re_attr.regex = re_attr.apply_slack(&re_attr.regex);
         assert_eq!(re_attr.regex, r"Vec\({a},\s*{b}\)");
 
         let mut re_attr = reattributes_with_mode(r"Vec\({a},ax {b}\)", "slack");
-        re_attr.apply_slack();
+        re_attr.regex = re_attr.apply_slack(&re_attr.regex);
         assert_eq!(re_attr.regex, r"Vec\({a},ax {b}\)");
 
         // slack mode should not be applied to characters in [] groups
         let mut re_attr = reattributes_with_mode(r"{a}[, ]{b}", "slack");
-        re_attr.apply_slack();
+        re_attr.regex = re_attr.apply_slack(&re_attr.regex);
         assert_eq!(re_attr.regex, r"{a}[, ]{b}");
 
         let mut re_attr = reattributes_with_mode(r"{a}\[, \]{b}", "slack");
-        re_attr.apply_slack();
+        re_attr.regex = re_attr.apply_slack(&re_attr.regex);
         assert_eq!(re_attr.regex, r"{a}\[,\s*\]{b}");
 
         let mut re_attr = reattributes_with_mode(r"{a}(, |; ){b}", "slack");
-        re_attr.apply_slack();
+        re_attr.regex = re_attr.apply_slack(&re_attr.regex);
         assert_eq!(re_attr.regex, r"{a}(,\s*|;\s*){b}");
     }
 
@@ -558,6 +582,7 @@ mod tests {
         let expr_true: Expr = parse_quote!(true);
         params.insert(mode.to_string(), expr_true);
         ReAttribute {
+            span: Span::call_site(),
             regex: s.to_string(),
             params,
         }

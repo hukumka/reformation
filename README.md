@@ -141,7 +141,3 @@
  }
  ```
 
- Currently there is no way to use common prefix/suffix for all variants other then specifying
- it for every variant.
- Also, in current version modes does not apply to enums.
-
