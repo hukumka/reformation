@@ -8,8 +8,10 @@ extern crate syn;
 extern crate proc_macro;
 
 mod syn_helpers;
+mod format;
 
 use crate::syn_helpers::*;
+use crate::format::arguments;
 
 use std::collections::{HashMap, HashSet};
 
@@ -551,34 +553,6 @@ fn replace_capturing_groups_with_no_capturing(s: &str) -> String {
     res
 }
 
-/// parse which fields present in format string
-fn arguments(format_string: &str) -> HashSet<String> {
-    let mut curly_bracket_stack = vec![];
-    let mut map = HashSet::new();
-
-    let mut iter = format_string.char_indices().peekable();
-    loop {
-        match iter.next() {
-            Some((i, c)) if c == '{' => {
-                if iter.peek().map(|(_, c)| *c) != Some('{') {
-                    curly_bracket_stack.push(i + c.len_utf8());
-                }
-            }
-            Some((i, c)) if c == '}' => {
-                if let Some(start) = curly_bracket_stack.pop() {
-                    let end = i;
-                    let substr = format_string.get(start..end).unwrap().to_string();
-                    map.insert(substr);
-                }
-            }
-            Some(_) => {}
-            None => {
-                break;
-            }
-        }
-    }
-    map
-}
 
 #[cfg(test)]
 mod tests {
