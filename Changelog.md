@@ -1,3 +1,8 @@
+### 0.3.0
++ Add compiler error for incorrect regex
++ Add compiler error for attempts to use named capture groups
++ Add compiler error for cases then format string does not match struct/enum declaration.
+
 ### 0.2.3
 + Add slack mode
 + Implement Reformation for char

@@ -11,7 +11,7 @@ mod syn_helpers;
 mod format;
 
 use crate::syn_helpers::*;
-use crate::format::arguments;
+use crate::format::Format;
 
 use std::collections::{HashMap, HashSet};
 
@@ -43,11 +43,12 @@ fn reformation_derive_do(mut ds: DeriveInput) -> syn::Result<TokenStream> {
 }
 
 fn get_attributes(ds: &DeriveInput) -> syn::Result<ReAttribute> {
-    let attr_tts = ds.attrs.iter().filter_map(get_re_parse_attribute).next();
+    let attr_tts = ds.attrs.iter().filter(|&x| is_reformation_attr(x)).next();
     let attr_tts = attr_tts
         .ok_or_else(|| syn::Error::new_spanned(ds, "Expected #[reformation(..)] attribute"))?;
     // ugly workaround against inability to construct ParseBuffer
-    let attr: ReAttribute = syn::parse_str(&attr_tts.to_string())?;
+    let mut attr: ReAttribute = syn::parse_str(&attr_tts.tts.to_string())?;
+    attr.span = attr_tts.span();
     Ok(attr)
 }
 
@@ -61,7 +62,7 @@ fn add_trait_bounds(generics: &mut Generics) {
     }
 }
 
-fn get_re_parse_attribute(a: &Attribute) -> Option<&TokenStream> {
+fn is_reformation_attr(a: &Attribute) -> bool{
     let pound = &a.pound_token;
     let path = &a.path;
     let style_cmp = match a.style {
@@ -71,11 +72,7 @@ fn get_re_parse_attribute(a: &Attribute) -> Option<&TokenStream> {
     let is_re_parse = quote!(#pound).to_string() == "#"
         && style_cmp
         && quote!(#path).to_string() == "reformation";
-    if is_re_parse {
-        Some(&a.tts)
-    } else {
-        None
-    }
+    is_re_parse
 }
 
 fn impl_trait(re: ReAttribute, ds: DeriveInput) -> syn::Result<TokenStream> {
@@ -108,6 +105,7 @@ fn impl_trait(re: ReAttribute, ds: DeriveInput) -> syn::Result<TokenStream> {
 
 fn impl_enum(ident: &Ident, enum_: &DataEnum, mut re: ReAttribute) -> syn::Result<TokenStream> {
     re.prepare_enum()?;
+    re.test_enum(&enum_)?;
     let re_str = re.regex;
     let (variants, types): (Vec<_>, Vec<_>) = enum_
         .variants
@@ -197,8 +195,28 @@ fn quote_variant_from_capture(ident: &Ident, variant: &Ident, values: &[&Type]) 
 }
 
 fn impl_empty_struct(ident: &Ident, mut re: ReAttribute) -> syn::Result<TokenStream>{
-    re.prepare_struct();
+    re.prepare_struct()?;
     let re_str = re.regex;
+    let span = re.span;
+    let f = Format::new(&re_str)
+        .map_err(|x| syn::Error::new(span, x))?;
+
+    let count = f.positional_arguments();
+    if count != 0{
+        let msg = format!(
+            "Struct {} does not contain any fields, but {} were specified in format string",
+            ident, count
+        );
+        return Err(syn::Error::new(span, msg));
+    }
+    let named = f.named_arguments();
+    if !named.is_empty(){
+        let msg = format!(
+            "Struct {} must not have any fields, specified by name",
+            ident
+        );
+        return Err(syn::Error::new(span, msg));
+    }
 
     Ok(quote!{
         fn regex_str()->&'static str{
@@ -216,12 +234,31 @@ fn impl_empty_struct(ident: &Ident, mut re: ReAttribute) -> syn::Result<TokenStr
 }
 
 fn impl_tuple_struct(ident: &Ident, struct_: &DataStruct, mut re: ReAttribute) -> syn::Result<TokenStream>{
-    re.prepare_struct();
+    re.prepare_struct()?;
     let re_str = re.regex;
-
+    let span = re.span;
     let types: Vec<_> = struct_.fields.iter()
         .map(|x| &x.ty)
         .collect();
+
+    let f = Format::new(&re_str)
+        .map_err(|x| syn::Error::new(span, x))?;
+    let count = f.positional_arguments();
+    if count != types.len(){
+        let msg = format!(
+            "Struct {} contains {} fields, but {} were specified in format string",
+            ident, types.len(), count
+        );
+        return Err(syn::Error::new(span, msg));
+    }
+    let named = f.named_arguments();
+    if !named.is_empty(){
+        let msg = format!(
+            "Struct {} must not have any fields, specified by name",
+            ident
+        );
+        return Err(syn::Error::new(span, msg));
+    }
 
     let types1 = &types;
     let types2 = &types;
@@ -257,11 +294,40 @@ fn impl_tuple_struct(ident: &Ident, struct_: &DataStruct, mut re: ReAttribute) -
 }
 
 fn impl_struct(struct_: &DataStruct, mut re: ReAttribute) -> syn::Result<TokenStream> {
-    re.prepare_struct();
+    re.prepare_struct()?;
+
+    let span = re.span;
+
+    let f = Format::new(&re.regex)
+        .map_err(|x| syn::Error::new(span, x))?;
+    let count = f.positional_arguments();
+    if count != 0{
+        let msg = "Structs with named fields must specify they fields in format string as named arguments.";
+        return Err(syn::Error::new(span, msg));
+    }
 
     let re_str = re.regex;
-    let args = arguments(&re_str);
+    let span = re.span;
+    let args = Format::new(&re_str)
+        .map_err(|x| {
+            syn::Error::new(span, x)
+        })?
+        .named_arguments();
     let fields = get_fields(struct_)?;
+
+    let fields_set: HashSet<_> = fields.iter()
+        .map(|&x| x.ident.as_ref().unwrap().to_string())
+        .collect();
+
+    let mut not_in_fields = args.iter()
+        .filter(|&x| !fields_set.contains(x));
+    if let Some(x) = not_in_fields.next(){
+        let msg = format!(
+            "Format string features field {{{}}}, but field with name {:?} does not exist",
+            x, x
+        );
+        return Err(syn::Error::new(span, msg));
+    }
 
     // split fields into two categories:
     // items to be parsed from string
@@ -369,7 +435,6 @@ struct ReAttribute {
 
 impl ReAttribute {
     fn prepare_enum(&mut self) -> syn::Result<()> {
-        // TODO: check for correctness
         let variants = Self::enum_variants(self.span, &self.regex)?;
         let variants: Vec<_> = variants
             .iter()
@@ -380,6 +445,59 @@ impl ReAttribute {
         Ok(())
     }
 
+    fn test_enum(&self, enum_: &DataEnum) -> syn::Result<()>{
+        let variants = Self::enum_variants(self.span, &self.regex)?;
+        let variants: Vec<_> = variants
+            .iter()
+            .map(|x| self.apply_no_regex(x))
+            .map(|x| self.apply_slack(&x))
+            .collect();
+        self.test_enum_variants(&variants, enum_)?;
+        self.test_enum_regex()
+    }
+
+    fn test_enum_regex(&self) -> syn::Result<()>{
+        let r = Format::new(&self.regex).unwrap().build_empty();
+        let r= Regex::new(&r).map_err(|x|{
+            syn::Error::new(self.span, x.to_string())
+        })?;
+        if let Some(x) = r.capture_names().flatten().next(){
+            let msg = format!("Named capture groups not allowed in format string. ({:?})", x);
+            Err(syn::Error::new(self.span, msg))
+        }else if let Some(_) = r.capture_locations().get(2){
+            unreachable!("Capture location found in {:?}, which should have been escaped by crate.", self.regex)
+        }else{
+            Ok(())
+        }
+    }
+
+    fn test_enum_variants(&self, variants: &[String], enum_: &DataEnum) -> syn::Result<()>{
+        let ev: Vec<_> = enum_.variants.iter()
+            .collect();
+        if variants.len() != ev.len(){
+            let msg = format!(
+                "Enum has {} variants, but format string covers {} of them.",
+                variants.len(),
+                ev.len()
+            );
+            return Err(syn::Error::new(self.span, msg));
+        }
+        for (s, v) in variants.iter().zip(&enum_.variants){
+            let fields = v.fields.iter().count();
+            let values = Format::new(s)
+                .map_err(|x| syn::Error::new(self.span, x))?
+                .positional_arguments();
+            if fields != values{
+                let msg = format!(
+                    "Enum variant {} has {} values, but {} were specified in format.",
+                    &v.ident, fields, values
+                );
+                return Err(syn::Error::new(self.span, msg));
+            }
+        }
+        Ok(())
+    }
+
     fn enum_variants(span: Span, s: &str) -> syn::Result<Vec<String>> {
         let mut variants = vec![];
         let mut current_variant = String::new();
@@ -387,10 +505,8 @@ impl ReAttribute {
         let mut iter = s.chars().peekable();
 
         if iter.next() != Some('(') {
-            return Err(syn::Error::new(
-                span,
-                "Enum format string must be r\"(variant1|...|variantN)\"",
-            ));
+            let message = "Enum format string must be r\"(variant1|...|variantN)\", but prefix is found";
+            return Err(syn::Error::new(span, message));
         }
         let mut bracket_depth = 1;
 
@@ -404,10 +520,10 @@ impl ReAttribute {
                 current_variant = String::new();
             } else {
                 current_variant.push(x);
-                if "({[".contains(x) {
+                if "(".contains(x) {
                     bracket_depth += 1;
                 }
-                if ")}]".contains(x) {
+                if ")".contains(x) {
                     bracket_depth -= 1;
                 }
                 if x == '\\' {
@@ -417,19 +533,28 @@ impl ReAttribute {
                 }
             }
         }
-        if iter.next() != None || bracket_depth > 0 {
-            return Err(syn::Error::new(
-                span,
-                "Enum format string must be r\"(variant1|...|variantN)\"",
-            ));
+        if iter.next() != None{
+            let message = "Enum format string must be r\"(variant1|...|variantN)\", but suffix is found";
+            return Err(syn::Error::new(span, message));
+        }else if bracket_depth > 0 {
+            let message ="Enum group bracket is not closed";
+            return Err(syn::Error::new(span, message));
         }
         variants.push(current_variant);
         Ok(variants)
     }
 
-    fn prepare_struct(&mut self) {
+    fn prepare_struct(&mut self) -> syn::Result<()>{
         self.regex = self.apply_no_regex(&self.regex);
         self.regex = self.apply_slack(&self.regex);
+
+        let r = Format::new(&self.regex)
+            .map_err(|x| syn::Error::new(self.span, x))?
+            .build_empty();
+        Regex::new(&r).map_err(|x|{
+            syn::Error::new(self.span, x.to_string())
+        })?;
+        Ok(())
     }
 
     /// if param no_regex specified, escape all characters, related to regular expressions
@@ -462,11 +587,6 @@ impl ReAttribute {
     }
 
     fn slack(s: &str) -> String {
-        /*
-        let re = Regex::new(r"([,:;])\s+").unwrap();
-        let s = re.replace_all(&self.regex, |cap: &Captures| format!(r"{}\s*", &cap[1]));
-        self.regex = s.to_string();
-        */
         let mut escape = false;
         let mut is_braced = false;
         let mut res = String::new();

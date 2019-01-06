@@ -1,7 +1,9 @@
 use std::str::CharIndices;
 use std::iter::Peekable;
 
-use std::collections::{HashSet, HashMap};
+use std::collections::HashSet;
+use std::fmt;
+use std::error::Error;
 
 pub struct Format{
     substrings: Vec<String>,
@@ -18,9 +20,22 @@ enum Argument{
 pub enum FormatError{
     NoClosing,
     NoOpening(usize),
-    NoSuchPositionalArgument(usize),
-    NoSuchNamedArgument(String),
 }
+
+impl fmt::Display for FormatError{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result{
+        match self {
+            FormatError::NoClosing => {
+                write!(f, "FormatError: Bracket was opened, but never closed")
+            },
+            FormatError::NoOpening(i) => {
+                write!(f, "FormatError: Bracket was closed at {}, but no matching opening bracket found", i)
+            },
+        }
+    }
+}
+
+impl Error for FormatError{}
 
 struct FormatBuilder<'a>{
     format: Format,
@@ -37,59 +52,37 @@ impl Format{
         });
         Ok(res)
     }
-
-    pub fn build(&self, args: &[String], kwargs: &HashMap<String, String>) -> Result<String, FormatError>{
-        let sub_len: usize = self.substrings.iter()
-            .map(|x| x.len())
-            .sum();
-        let arg_len: usize = self.arguments.iter()
-            .map(|x| x.len(args, kwargs))
-            .fold(Ok(0), |a, b| a.and(b))?;
-
-        let mut res = String::with_capacity(sub_len + arg_len);
-
-        for (string, arg) in self.substrings.iter().zip(&self.arguments){
-            res.push_str(string);
-            res.push_str(arg.to_string(args, kwargs)?);
-        }
-        res.push_str(self.substrings.last().unwrap());
-        Ok(res)
+    pub fn build_empty(&self) -> String{
+        self.substrings.join("")
     }
 
-    pub fn map_substrings<T: Fn(&str)->String>(&mut self, map: T){
+    fn map_substrings<T: Fn(&str)->String>(&mut self, map: T){
         for i in &mut self.substrings{
             *i = map(&i);
         }
     }
-}
 
-impl Argument{
-    fn len(&self, args: &[String], kwargs: &HashMap<String, String>) -> Result<usize, FormatError>{
-        match self {
-            Argument::Positional(i) => {
-                args.get(*i)
-                    .map(|s| s.len())
-                    .ok_or_else(|| FormatError::NoSuchPositionalArgument(*i))
-            },
-            Argument::Named(k) => {
-                kwargs.get(k)
-                    .map(|s| s.len())
-                    .ok_or_else(|| FormatError::NoSuchNamedArgument(k.to_string()))
-            }
-        }
+    pub fn named_arguments(&self)->HashSet<String>{
+        let set: HashSet<_> = self.arguments.iter()
+            .filter_map(|a|{
+                match a{
+                    Argument::Named(s) => Some(s.clone()),
+                    _ => None
+                }
+            })
+            .collect();
+        set
     }
 
-    fn to_string<'a>(&self, args: &'a [String], kwargs: &'a HashMap<String, String>) -> Result<&'a String, FormatError>{
-        match self {
-            Argument::Positional(i) => {
-                args.get(*i)
-                    .ok_or_else(|| FormatError::NoSuchPositionalArgument(*i))
-            },
-            Argument::Named(k) => {
-                kwargs.get(k)
-                    .ok_or_else(|| FormatError::NoSuchNamedArgument(k.to_string()))
-            }
-        }
+    pub fn positional_arguments(&self)->usize{
+        self.arguments.iter()
+            .filter_map(|a|{
+                match a{
+                    Argument::Positional(_) => Some(()),
+                    _ => None
+                }
+            })
+            .count()
     }
 }
 
@@ -161,36 +154,6 @@ impl<'a> FormatBuilder<'a>{
         Ok(Argument::Named(name))
     }
 }
-
-/// parse which fields present in format string
-pub fn arguments(format_string: &str) -> HashSet<String> {
-    let mut curly_bracket_stack = vec![];
-    let mut map = HashSet::new();
-
-    let mut iter = format_string.char_indices().peekable();
-    loop {
-        match iter.next() {
-            Some((i, c)) if c == '{' => {
-                if iter.peek().map(|(_, c)| *c) != Some('{') {
-                    curly_bracket_stack.push(i + c.len_utf8());
-                }
-            }
-            Some((i, c)) if c == '}' => {
-                if let Some(start) = curly_bracket_stack.pop() {
-                    let end = i;
-                    let substr = format_string.get(start..end).unwrap().to_string();
-                    map.insert(substr);
-                }
-            }
-            Some(_) => {}
-            None => {
-                break;
-            }
-        }
-    }
-    map
-}
-
 
 #[cfg(test)]
 mod tests{
