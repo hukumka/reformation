@@ -187,21 +187,4 @@ mod tests{
             Argument::Positional(1),
         ]);
     }
-
-    #[test]
-    fn test_format_build(){
-        let f = Format::new("a = {{{}}}, b = {}").unwrap();
-        let s = f.build(&["x".to_string(), "y".to_string()], &HashMap::new()).unwrap();
-        assert_eq!(&s, "a = {x}, b = y");
-        let s = f.build(&["Eras}".to_string(), "y{".to_string()], &HashMap::new()).unwrap();
-        assert_eq!(&s, "a = {Eras}}, b = y{");
-
-        let f = Format::new("Vec{{{x}, {y}, {z}}}").unwrap();
-        let mut map = HashMap::new();
-        map.insert("x".to_string(), "x".to_string());
-        map.insert("y".to_string(), "y".to_string());
-        map.insert("z".to_string(), "z".to_string());
-        let s = f.build(&[], &map).unwrap();
-        assert_eq!(&s, "Vec{x, y, z}");
-    }
 }

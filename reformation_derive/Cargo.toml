@@ -1,6 +1,6 @@
 [package]
 name = "reformation_derive"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["hukumka <hukumka212@gmail.com>"]
 edition = "2018"
 description = "reformation derive cratet "
