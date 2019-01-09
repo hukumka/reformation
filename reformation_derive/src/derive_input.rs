@@ -169,7 +169,7 @@ impl DeriveInput {
             }
             Data::Enum(enum_) => {
                 let format = EnumFormat::parse(span, attrs)?;
-                arguments = Arguments::parse_enum(enum_, &format)?;
+                arguments = Arguments::parse_enum(&enum_, &format)?;
                 final_regex_str = format.build_string()?;
             }
             Data::Union(_) => {
@@ -193,7 +193,7 @@ struct StructFormat {
 impl StructFormat {
     fn parse(span: Span, attrs: Vec<Attribute>) -> syn::Result<Self> {
         let attr = ReformationAttribute::parse(span, attrs)?;
-        let format = Format::new(&attr.regex_string).map_err(|e| errors::format_error(span, e))?;
+        let format = Format::build(&attr.regex_string).map_err(|e| errors::format_error(span, e))?;
 
         let format = apply_modes(format, &attr.modes);
         Ok(Self { span, format })
@@ -231,7 +231,7 @@ impl EnumFormat {
         let format: syn::Result<Vec<_>> = variants
             .into_iter()
             .map(|s| {
-                let format = Format::new(s).map_err(|e| errors::format_error(span, e))?;
+                let format = Format::build(s).map_err(|e| errors::format_error(span, e))?;
                 let format = apply_modes(format, &attr.modes);
                 Ok(format)
             })
@@ -330,8 +330,7 @@ fn escape_regex(input: &str) -> String {
     lazy_static! {
         static ref RE: Regex = Regex::new(r"[\|\[\]\(\)\{\}\.\?\+\*\^\\]").unwrap();
     }
-    let res = RE.replace_all(input, r"\$0").to_string();
-    res
+    RE.replace_all(input, r"\$0").to_string()
 }
 
 fn slack(input: &str) -> String {
@@ -364,13 +363,13 @@ impl Arguments {
         }
     }
 
-    fn parse_enum(enum_: DataEnum, format: &EnumFormat) -> syn::Result<Self> {
-        ArgumentsCases::parse(enum_, format).map(|x| Arguments::Cases(x))
+    fn parse_enum(enum_: &DataEnum, format: &EnumFormat) -> syn::Result<Self> {
+        ArgumentsCases::parse(enum_, format).map(Arguments::Cases)
     }
 }
 
 impl ArgumentsCases {
-    fn parse(enum_: DataEnum, format: &EnumFormat) -> syn::Result<Self> {
+    fn parse(enum_: &DataEnum, format: &EnumFormat) -> syn::Result<Self> {
         let enum_variant_count = enum_.variants.len();
         let format_variant_count = format.format.len();
         if enum_variant_count != format_variant_count {

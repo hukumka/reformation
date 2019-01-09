@@ -47,7 +47,7 @@ struct FormatBuilder<'a> {
 }
 
 impl Format {
-    pub fn new(string: &str) -> Result<Self, FormatError> {
+    pub fn build(string: &str) -> Result<Self, FormatError> {
         let mut res = FormatBuilder::new(string).build()?;
         res.map_substrings(|x| x.replace("{{", "{").replace("}}", "}"));
         Ok(res)
@@ -196,14 +196,14 @@ mod tests {
 
     #[test]
     fn test_format_new() {
-        let f = Format::new("a = {}, b = {}").unwrap();
+        let f = Format::build("a = {}, b = {}").unwrap();
         assert_eq!(f.substrings, &["a = ", ", b = ", ""]);
         assert_eq!(
             f.arguments,
             &[Argument::Positional(0), Argument::Positional(1),]
         );
 
-        let f = Format::new("Vec{{ {x}, {}, {z}, {}}}").unwrap();
+        let f = Format::build("Vec{{ {x}, {}, {z}, {}}}").unwrap();
         assert_eq!(f.substrings, &["Vec{ ", ", ", ", ", ", ", "}"]);
         assert_eq!(
             f.arguments,

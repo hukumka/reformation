@@ -114,8 +114,7 @@ fn is_reformation_attr(a: &Attribute) -> bool {
         AttrStyle::Outer => true,
         _ => false,
     };
-    let is_re_parse = quote!(#pound).to_string() == "#"
+    quote!(#pound).to_string() == "#"
         && style_cmp
-        && quote!(#path).to_string() == "reformation";
-    is_re_parse
+        && quote!(#path).to_string() == "reformation"
 }
