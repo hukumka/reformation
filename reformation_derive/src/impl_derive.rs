@@ -1,14 +1,16 @@
-use syn::{Ident, Generics};
-use quote::quote;
 use proc_macro2::TokenStream;
+use quote::quote;
+use syn::{Generics, Ident};
 
-use crate::derive_input::{DeriveInput, Arguments, ArgumentsNamed, ArgumentsCases, ArgumentsPos, EnumVariant};
+use crate::derive_input::{
+    Arguments, ArgumentsCases, ArgumentsNamed, ArgumentsPos, DeriveInput, EnumVariant,
+};
 
 /// Generate ```TokenStream``` with implementation of ```Reformation``` and ```FromStr``` for `input`
-pub fn impl_all(input: &DeriveInput) -> TokenStream{
+pub fn impl_all(input: &DeriveInput) -> TokenStream {
     let from_str = impl_from_str(input.ident(), input.generics());
     let reformation = impl_reformation(input);
-    let res = quote!{
+    let res = quote! {
         #reformation
         #from_str
     };
@@ -16,7 +18,7 @@ pub fn impl_all(input: &DeriveInput) -> TokenStream{
 }
 
 /// Generate ```TokenStream``` with implementation of ```Reformation``` for `input`
-fn impl_reformation(input: &DeriveInput) -> TokenStream{
+fn impl_reformation(input: &DeriveInput) -> TokenStream {
     let ident = input.ident();
     let (impl_gen, type_gen, where_clause) = input.generics().split_for_impl();
 
@@ -24,7 +26,7 @@ fn impl_reformation(input: &DeriveInput) -> TokenStream{
     let count = fn_captures_count_token_stream(&input);
     let from_captures = fn_from_captures_token_stream(&input);
 
-    quote!{
+    quote! {
         impl #impl_gen ::reformation::Reformation for #ident #type_gen #where_clause{
             #regex_tts
             #count
@@ -34,18 +36,18 @@ fn impl_reformation(input: &DeriveInput) -> TokenStream{
 }
 
 /// Generate ```TokenStream``` representing method `regex_str`
-fn fn_regex_token_stream(input: &DeriveInput) -> TokenStream{
+fn fn_regex_token_stream(input: &DeriveInput) -> TokenStream {
     let base = input.regex_format_string();
     let args = input.arguments();
-    if args.is_empty(){
-        return quote!{
+    if args.is_empty() {
+        return quote! {
             fn regex_str() -> &'static str{
                 #base
             }
         };
     }
     let regex_args = args.regex_arguments();
-    quote!{
+    quote! {
         fn regex_str() -> &'static str{
             ::reformation::lazy_static!{
                 static ref RE: String = {
@@ -58,22 +60,22 @@ fn fn_regex_token_stream(input: &DeriveInput) -> TokenStream{
 }
 
 /// Generate ```TokenStream``` representing method `captures_count`
-fn fn_captures_count_token_stream(input: &DeriveInput) -> TokenStream{
+fn fn_captures_count_token_stream(input: &DeriveInput) -> TokenStream {
     let args = input.arguments();
-    if args.is_empty(){
-        return quote!{
+    if args.is_empty() {
+        return quote! {
             fn captures_count() -> usize{
                 0
             }
-        }
+        };
     }
 
     let mut base_count = 0;
-    if let Arguments::Cases(ref cases) = &args{
+    if let Arguments::Cases(ref cases) = &args {
         base_count = cases.variants().len();
     }
     let types = args.types();
-    quote!{
+    quote! {
         fn captures_count() -> usize{
             let mut acc = #base_count;
             #(
@@ -85,8 +87,8 @@ fn fn_captures_count_token_stream(input: &DeriveInput) -> TokenStream{
 }
 
 /// Generate ```TokenStream``` representing method `from_captures`
-fn fn_from_captures_token_stream(input: &DeriveInput) -> TokenStream{
-    match input.arguments(){
+fn fn_from_captures_token_stream(input: &DeriveInput) -> TokenStream {
+    match input.arguments() {
         Arguments::Empty => empty_struct_from_captures(input),
         Arguments::Pos(ref args) => tuple_struct_from_captures(input.ident(), &args),
         Arguments::Named(ref args) => struct_from_captures(input.ident(), &args),
@@ -95,9 +97,9 @@ fn fn_from_captures_token_stream(input: &DeriveInput) -> TokenStream{
 }
 
 /// Generate token stream with `from_captures` method for structs of type `struct Ident;`
-fn empty_struct_from_captures(input: &DeriveInput) -> TokenStream{
+fn empty_struct_from_captures(input: &DeriveInput) -> TokenStream {
     let name = input.ident();
-    quote!{
+    quote! {
         fn from_captures(captures: &::reformation::Captures, offset: usize) -> Result<Self, ::reformation::Error>{
             Ok(#name)
         }
@@ -105,9 +107,9 @@ fn empty_struct_from_captures(input: &DeriveInput) -> TokenStream{
 }
 
 /// Generate token stream with `from_captures` method for structs of type `struct Ident(arg1, arg2, arg3);`
-fn tuple_struct_from_captures(ident: &Ident, args: &ArgumentsPos) -> TokenStream{
+fn tuple_struct_from_captures(ident: &Ident, args: &ArgumentsPos) -> TokenStream {
     let args2 = args;
-    quote!{
+    quote! {
         fn from_captures(captures: &::reformation::Captures, mut offset: usize) -> Result<Self, ::reformation::Error>{
             let res = #ident(
                 #({
@@ -129,13 +131,13 @@ fn tuple_struct_from_captures(ident: &Ident, args: &ArgumentsPos) -> TokenStream
 ///     ...
 /// };
 /// ```
-fn struct_from_captures(ident: &Ident, args: &ArgumentsNamed) -> TokenStream{
+fn struct_from_captures(ident: &Ident, args: &ArgumentsNamed) -> TokenStream {
     let ident2 = ident;
     let (arg_names, arg_types) = args.split_names_types();
     let arg_types = arg_types;
     let arg_types2 = arg_types;
     let (default_arg, default_type) = args.default_fields();
-    quote!{
+    quote! {
         fn from_captures(captures: &::reformation::Captures, mut offset: usize) -> Result<#ident2, ::reformation::Error>{
             let res = #ident{
                 #(
@@ -156,11 +158,12 @@ fn struct_from_captures(ident: &Ident, args: &ArgumentsNamed) -> TokenStream{
 }
 
 /// Generate token stream with `from_captures` method for enum
-fn enum_from_captures(input: &DeriveInput, args: &ArgumentsCases) -> TokenStream{
-    let variants = args.variants()
+fn enum_from_captures(input: &DeriveInput, args: &ArgumentsCases) -> TokenStream {
+    let variants = args
+        .variants()
         .iter()
         .map(|x| enum_variant_from_captures(input, x));
-    quote!{
+    quote! {
         fn from_captures(captures: &::reformation::Captures, mut offset: usize) -> Result<Self, ::reformation::Error>{
             #(#variants)*
 
@@ -169,22 +172,22 @@ fn enum_from_captures(input: &DeriveInput, args: &ArgumentsCases) -> TokenStream
     }
 }
 
-fn enum_variant_from_captures(derive_input: &DeriveInput, variant: &EnumVariant) -> TokenStream{
+fn enum_variant_from_captures(derive_input: &DeriveInput, variant: &EnumVariant) -> TokenStream {
     let fields = variant.fields();
     let fields2 = fields;
     let fields3 = fields;
     let ident = variant.ident();
     let enum_ident = derive_input.ident();
     let (_, type_gen, _) = derive_input.generics().split_for_impl();
-    if fields.is_empty(){
-        quote!{
+    if fields.is_empty() {
+        quote! {
             if captures.get(offset).is_some(){
                 return Ok(#enum_ident #type_gen :: #ident);
             }
             offset += 1;
         }
-    }else{
-        let res = quote!{
+    } else {
+        let res = quote! {
             if captures.get(offset).is_some(){
                 offset += 1;
                 let res = #enum_ident #type_gen :: #ident(
@@ -206,14 +209,14 @@ fn enum_variant_from_captures(derive_input: &DeriveInput, variant: &EnumVariant)
 }
 
 /// Generate ```TokenStream``` with implementation of ```FromStr``` for `DeriveInput` with name `ident`
-fn impl_from_str(ident: &Ident, generics: &Generics) -> TokenStream{
+fn impl_from_str(ident: &Ident, generics: &Generics) -> TokenStream {
     let (impl_gen, type_gen, where_clause) = generics.split_for_impl();
     // work around inability to use variable twice
     let ident2 = ident.to_string();
     let ident3 = ident;
     let ident4 = ident;
     let ident5 = ident;
-    quote!{
+    quote! {
         impl #impl_gen std::str::FromStr for #ident #type_gen #where_clause{
             type Err = ::reformation::Error;
 
@@ -242,13 +245,13 @@ fn impl_from_str(ident: &Ident, generics: &Generics) -> TokenStream{
     }
 }
 
-trait GetRegexArguments{
+trait GetRegexArguments {
     fn regex_arguments(&self) -> TokenStream;
 }
 
-impl GetRegexArguments for Arguments{
-    fn regex_arguments(&self) -> TokenStream{
-        match self{
+impl GetRegexArguments for Arguments {
+    fn regex_arguments(&self) -> TokenStream {
+        match self {
             Arguments::Cases(c) => c.regex_arguments(),
             Arguments::Named(n) => n.regex_arguments(),
             Arguments::Pos(p) => p.regex_arguments(),
@@ -257,40 +260,39 @@ impl GetRegexArguments for Arguments{
     }
 }
 
-impl GetRegexArguments for ArgumentsNamed{
-    fn regex_arguments(&self) -> TokenStream{
+impl GetRegexArguments for ArgumentsNamed {
+    fn regex_arguments(&self) -> TokenStream {
         let (names, types) = self.split_names_types();
-        quote!{
+        quote! {
             #(#names = <#types as ::reformation::Reformation>::regex_str()),*
         }
     }
 }
 
-impl GetRegexArguments for ArgumentsPos{
-    fn regex_arguments(&self) -> TokenStream{
+impl GetRegexArguments for ArgumentsPos {
+    fn regex_arguments(&self) -> TokenStream {
         let types = (&self).into_iter();
-        quote!{
+        quote! {
             #(<#types as ::reformation::Reformation>::regex_str()),*
         }
     }
 }
 
-impl GetRegexArguments for ArgumentsCases{
-    fn regex_arguments(&self) -> TokenStream{
-        let variants = self.variants().iter()
-            .map(|x| x.regex_arguments());
+impl GetRegexArguments for ArgumentsCases {
+    fn regex_arguments(&self) -> TokenStream {
+        let variants = self.variants().iter().map(|x| x.regex_arguments());
 
-        let res = quote!{
+        let res = quote! {
             #(#variants)*
         };
         res
     }
 }
 
-impl GetRegexArguments for EnumVariant{
-    fn regex_arguments(&self) -> TokenStream{
+impl GetRegexArguments for EnumVariant {
+    fn regex_arguments(&self) -> TokenStream {
         let types = self.fields();
-        let res = quote!{
+        let res = quote! {
             #(<#types as ::reformation::Reformation>::regex_str(),)*
         };
         res
