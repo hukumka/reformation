@@ -459,15 +459,15 @@ impl ArgumentsPos {
         let fields: Vec<_> = struct_.unnamed.into_iter().map(|x| x.ty).collect();
         let real = fields.len();
         let expected = format.format.positional_arguments();
+        if !format.format.named_arguments().is_empty() {
+            return Err(errors::unnamed_struct_named_argumens(format.span));
+        }
         if real != expected {
             return Err(errors::unnamed_struct_wrong_argument_count(
                 format.span,
                 real,
                 expected,
             ));
-        }
-        if !format.format.named_arguments().is_empty() {
-            return Err(errors::unnamed_struct_named_argumens(format.span));
         }
         Ok(ArgumentsPos(fields))
     }
