@@ -194,7 +194,7 @@
 pub use reformation_derive::*;
 
 pub use lazy_static::lazy_static;
-pub use regex::{Captures, Regex};
+pub use regex::{Captures, Regex, Error as RegexError};
 use std::fmt;
 
 pub type Error = Box<std::error::Error>;

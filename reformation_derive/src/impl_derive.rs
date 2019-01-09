@@ -47,16 +47,21 @@ fn fn_regex_token_stream(input: &DeriveInput) -> TokenStream {
         };
     }
     let regex_args = args.regex_arguments();
-    quote! {
+    let res = quote! {
         fn regex_str() -> &'static str{
-            ::reformation::lazy_static!{
-                static ref RE: String = {
-                    format!(#base, #regex_args)
-                };
-            }
-            &RE
+            // cannot use lazy_static, since it cannot access generic types
+            let re = unsafe{
+                static mut RE: Option<String> = None;
+                static INIT: std::sync::Once = std::sync::Once::new();
+                INIT.call_once(||{
+                    RE = Some(format!(#base, #regex_args));
+                });
+                &RE
+            };
+            re.as_ref().unwrap_or_else(|| unreachable!())
         }
-    }
+    };
+    res
 }
 
 /// Generate ```TokenStream``` representing method `captures_count`
@@ -90,8 +95,8 @@ fn fn_captures_count_token_stream(input: &DeriveInput) -> TokenStream {
 fn fn_from_captures_token_stream(input: &DeriveInput) -> TokenStream {
     match input.arguments() {
         Arguments::Empty => empty_struct_from_captures(input),
-        Arguments::Pos(ref args) => tuple_struct_from_captures(input.ident(), &args),
-        Arguments::Named(ref args) => struct_from_captures(input.ident(), &args),
+        Arguments::Pos(ref args) => tuple_struct_from_captures(input, &args),
+        Arguments::Named(ref args) => struct_from_captures(input, &args),
         Arguments::Cases(ref args) => enum_from_captures(input, &args),
     }
 }
@@ -107,11 +112,14 @@ fn empty_struct_from_captures(input: &DeriveInput) -> TokenStream {
 }
 
 /// Generate token stream with `from_captures` method for structs of type `struct Ident(arg1, arg2, arg3);`
-fn tuple_struct_from_captures(ident: &Ident, args: &ArgumentsPos) -> TokenStream {
+fn tuple_struct_from_captures(input: &DeriveInput, args: &ArgumentsPos) -> TokenStream {
+    let (_, ty_gen, _) = input.generics().split_for_impl();
+    let ty_gen = ty_gen.as_turbofish();
+    let ident = input.ident();
     let args2 = args;
     quote! {
         fn from_captures(captures: &::reformation::Captures, mut offset: usize) -> Result<Self, ::reformation::Error>{
-            let res = #ident(
+            let res = #ident #ty_gen(
                 #({
                     let res = <#args as ::reformation::Reformation>::from_captures(captures, offset)?;
                     offset += <#args2 as ::reformation::Reformation>::captures_count();
@@ -131,15 +139,17 @@ fn tuple_struct_from_captures(ident: &Ident, args: &ArgumentsPos) -> TokenStream
 ///     ...
 /// };
 /// ```
-fn struct_from_captures(ident: &Ident, args: &ArgumentsNamed) -> TokenStream {
-    let ident2 = ident;
+fn struct_from_captures(input: &DeriveInput, args: &ArgumentsNamed) -> TokenStream {
+    let (_, ty_gen, _) = input.generics().split_for_impl();
+    let ty_gen = ty_gen.as_turbofish();
+    let ident = input.ident();
     let (arg_names, arg_types) = args.split_names_types();
     let arg_types = arg_types;
     let arg_types2 = arg_types;
     let (default_arg, default_type) = args.default_fields();
-    quote! {
-        fn from_captures(captures: &::reformation::Captures, mut offset: usize) -> Result<#ident2, ::reformation::Error>{
-            let res = #ident{
+    let res = quote! {
+        fn from_captures(captures: &::reformation::Captures, mut offset: usize) -> Result<Self, ::reformation::Error>{
+            let res = #ident #ty_gen{
                 #(
                     #arg_names: {
                         let res = <#arg_types as ::reformation::Reformation>::from_captures(captures, offset)?;
@@ -154,7 +164,8 @@ fn struct_from_captures(ident: &Ident, args: &ArgumentsNamed) -> TokenStream {
             };
             Ok(res)
         }
-    }
+    };
+    res
 }
 
 /// Generate token stream with `from_captures` method for enum
@@ -213,33 +224,40 @@ fn impl_from_str(ident: &Ident, generics: &Generics) -> TokenStream {
     let (impl_gen, type_gen, where_clause) = generics.split_for_impl();
     // work around inability to use variable twice
     let ident2 = ident.to_string();
-    let ident3 = ident;
-    let ident4 = ident;
-    let ident5 = ident;
+    let as_reformation = quote!(<#ident #type_gen as ::reformation::Reformation>);
+    let as_reformation = &as_reformation;
+    let as_reformation1 = as_reformation;
+    let as_reformation2 = as_reformation;
     quote! {
         impl #impl_gen std::str::FromStr for #ident #type_gen #where_clause{
             type Err = ::reformation::Error;
 
             fn from_str(string: &str) -> Result<Self, ::reformation::Error>{
-                // wrap regular expression inside lazy static to avoid recompiling regex
-                ::reformation::lazy_static!{
-                    static ref RE: ::reformation::Regex = {
-                        let re = <#ident5 as ::reformation::Reformation>::regex_str();
-                        ::reformation::Regex::new(re)
-                            .unwrap_or_else(|x|{
-                                panic!("Cannot compile regex for {}: {}", #ident2, x)
-                            })
-                    };
-                }
+                let re = unsafe{
+                    static mut RE: Option<Result<::reformation::Regex, ::reformation::RegexError>> = None;
+                    static ONCE: std::sync::Once = std::sync::Once::new();
+                    ONCE.call_once(||{
+                        let re = #as_reformation::regex_str();
+                        RE = Some(::reformation::Regex::new(re));
+                    });
+                    &RE
+                };
+
+                let re = re.as_ref().unwrap_or_else(|| unreachable!())
+                    .as_ref()
+                    .unwrap_or_else(|x|{
+                        panic!("Cannot compile regex for {}: {}", #ident2, x)
+                    });
+
                 // get captures for regular expression and delegete to from_captures method
-                let captures = RE.captures(string).ok_or_else(||{
+                let captures = re.captures(string).ok_or_else(||{
                     ::reformation::NoRegexMatch{
-                        format: <#ident3 as ::reformation::Reformation>::regex_str(),
+                        format: #as_reformation1::regex_str(),
                         request: string.to_string(),
                     }
                 })?;
                 // ignore capture group mathing entire expression
-                <#ident4 as ::reformation::Reformation>::from_captures(&captures, 1)
+                #as_reformation2::from_captures(&captures, 1)
             }
         }
     }

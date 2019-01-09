@@ -66,6 +66,12 @@ impl DeriveInput {
     pub fn regex_format_string(&self) -> &str {
         &self.final_regex_str
     }
+
+    fn apply_where(&mut self){
+        for p in self.generics.type_params_mut(){
+            p.bounds.push(parse_quote!(::reformation::Reformation));
+        }
+    }
 }
 
 impl Arguments {
@@ -176,12 +182,14 @@ impl DeriveInput {
                 return Err(errors::unions_are_not_supported(span));
             }
         }
-        Ok(Self {
+        let mut res = Self{
             ident,
             generics,
             arguments,
             final_regex_str,
-        })
+        };
+        res.apply_where();
+        Ok(res)
     }
 }
 

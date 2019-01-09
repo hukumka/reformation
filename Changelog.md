@@ -1,3 +1,13 @@
+### 0.3.2
++ Add basic generic support.
++ Replace usage of lazy_static with std::sync::Once. Prepare to remove it in 0.4
+    (Motivation: lazy_static cannot access generic types of function it placed in).
++ Add examples for generics.
++ Add examples for failing cases.
+
+### 0.3.1
++ Fix failing test
+
 ### 0.3.0
 + Add compiler error for incorrect regex
 + Add compiler error for attempts to use named capture groups
