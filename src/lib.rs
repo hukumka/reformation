@@ -195,8 +195,9 @@ pub use reformation_derive::*;
 
 pub use lazy_static::lazy_static;
 pub use regex::{Captures, Regex};
-use std::error::Error;
 use std::fmt;
+
+pub type Error = Box<std::error::Error>;
 
 #[derive(Debug)]
 pub struct NoRegexMatch {
@@ -226,7 +227,7 @@ pub trait Reformation: Sized {
     fn captures_count() -> usize;
 
     /// create instance of function from captures with given offset
-    fn from_captures(c: &Captures, offset: usize) -> Result<Self, Box<Error>>;
+    fn from_captures(c: &Captures, offset: usize) -> Result<Self, Error>;
 }
 
 macro_rules! group_impl_parse_primitive{
@@ -236,14 +237,17 @@ macro_rules! group_impl_parse_primitive{
 
     (@single $re: expr, $name: ty) => {
         impl Reformation for $name{
+            #[inline]
             fn regex_str()->&'static str{
                 $re
             }
 
+            #[inline]
             fn captures_count()->usize{
                 1
             }
 
+            #[inline]
             fn from_captures(c: &Captures, offset: usize)->Result<Self, Box<std::error::Error>>{
                 let res = c.get(offset).unwrap().as_str().parse::<$name>()?;
                 Ok(res)

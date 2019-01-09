@@ -56,7 +56,11 @@ impl Format{
         self.substrings.join("")
     }
 
-    fn map_substrings<T: Fn(&str)->String>(&mut self, map: T){
+    pub fn no_arguments(&self) -> bool{
+        self.arguments.is_empty()
+    }
+
+    pub fn map_substrings<T: Fn(&str)->String>(&mut self, map: T){
         for i in &mut self.substrings{
             *i = map(&i);
         }
@@ -83,6 +87,29 @@ impl Format{
                 }
             })
             .count()
+    }
+}
+
+impl ToString for Format{
+    fn to_string(&self) -> String{
+        let escape = |s: &str| s.replace("{", "{{").replace("}", "}}");
+        let mut res = String::new();
+        for (s, a) in self.substrings.iter().zip(&self.arguments){
+            res.push_str(&escape(s));
+            res.push_str(&a.to_string());
+        }
+        res.push_str(&escape(self.substrings.last().unwrap()));
+        res
+    }
+}
+
+impl ToString for Argument{
+    #[inline]
+    fn to_string(&self) -> String{
+        match self {
+            Argument::Named(s) => format!("{{{}}}", s),
+            Argument::Positional(_) => "{}".to_string(),
+        }
     }
 }
 

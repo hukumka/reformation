@@ -27,6 +27,12 @@ fn path_to_ident_name(path: &Path) -> Option<String> {
     }
 }
 
+pub fn get_regex_str(re: &Expr) -> syn::Result<String> {
+    expr_lit(re)
+        .and_then(lit_str)
+        .ok_or_else(|| syn::Error::new_spanned(re, "regex_parse argument must be string literal."))
+}
+
 pub fn expr_lit(x: &Expr) -> Option<&Lit> {
     if let Expr::Lit(ref i) = x {
         Some(&i.lit)
