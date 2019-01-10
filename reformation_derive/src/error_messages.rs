@@ -1,6 +1,5 @@
 use crate::format::{Format, FormatError};
 use proc_macro2::Span;
-use syn::parse::ParseStream;
 use syn::{Error, Expr, Ident};
 
 pub fn no_reformation_attribute(span: Span) -> Error {
@@ -8,14 +7,8 @@ pub fn no_reformation_attribute(span: Span) -> Error {
     Error::new(span, msg)
 }
 
-pub fn no_format_string_in_attribute(stream: ParseStream) -> Error {
+pub fn no_format_string_in_attribute(span: Span) -> Error {
     let msg = "Attribute `#[reformation(...)]` must containt format string as first item.";
-    stream.error(msg)
-}
-
-pub fn attribute_mode_is_not_assignment(span: Span) -> Error {
-    let msg = "Modes specified in #[reformation(\"...\", ..modes)]\
-               correspond to following syntax: `mode_name=expression`.";
     Error::new(span, msg)
 }
 

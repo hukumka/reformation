@@ -3,7 +3,7 @@ use reformation::Reformation;
 #[derive(Reformation)]
 #[reformation(r"A\({x}\)")]
 struct A<T>{
-    x: T
+    x: T,
 }
 
 fn main(){

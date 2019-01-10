@@ -1,5 +1,5 @@
 use crate::format::Format;
-use crate::reformation_attribute::{Modes, ReformationAttribute};
+use crate::reformation_attribute::ReformationAttribute;
 use lazy_static::lazy_static;
 use proc_macro2::Span;
 use regex::Regex;
@@ -201,9 +201,10 @@ struct StructFormat {
 impl StructFormat {
     fn parse(span: Span, attrs: Vec<Attribute>) -> syn::Result<Self> {
         let attr = ReformationAttribute::parse(span, attrs)?;
-        let format = Format::build(&attr.regex_string).map_err(|e| errors::format_error(span, e))?;
+        let format = Format::build(&attr.regex()?)
+            .map_err(|e| errors::format_error(span, e))?;
 
-        let format = apply_modes(format, &attr.modes);
+        let format = apply_modes(format, &attr);
         Ok(Self { span, format })
     }
 
@@ -240,7 +241,7 @@ impl EnumFormat {
             .into_iter()
             .map(|s| {
                 let format = Format::build(s).map_err(|e| errors::format_error(span, e))?;
-                let format = apply_modes(format, &attr.modes);
+                let format = apply_modes(format, &attr);
                 Ok(format)
             })
             .collect();
@@ -268,7 +269,7 @@ impl EnumFormat {
     // "(a(b|c)|d)" -> ["a(b|c)", "d"]
     // (a\||d) -> ["a|", "d"]
     fn split_by_pipe(attr: &ReformationAttribute) -> syn::Result<Vec<&str>> {
-        let mut iter = attr.regex_string.char_indices();
+        let mut iter = attr.regex()?.char_indices();
         let first = iter.next().map(|(_, c)| c);
         if first != Some('(') {
             return Err(errors::format_string_enum_start(attr.span, first));
@@ -284,22 +285,22 @@ impl EnumFormat {
             } else if c == ')' {
                 bracket_level -= 1;
                 if bracket_level == 0 {
-                    res.push(attr.regex_string.get(start..i).unwrap());
+                    res.push(attr.regex()?.get(start..i).unwrap());
                     break;
                 }
             } else if c == '\\' {
                 iter.next();
             } else if c == '|' {
-                res.push(attr.regex_string.get(start..i).unwrap());
+                res.push(attr.regex()?.get(start..i).unwrap());
                 start = i + c.len_utf8();
             }
         }
 
         if let Some((i, _)) = iter.next() {
-            let syffix = attr.regex_string.get(i..).unwrap();
+            let syffix = attr.regex()?.get(i..).unwrap();
             return Err(errors::format_string_enum_end(attr.span, syffix));
         } else if bracket_level != 0 {
-            let variant = attr.regex_string.get(start..).unwrap();
+            let variant = attr.regex()?.get(start..).unwrap();
             return Err(errors::format_string_enum_unclosed(attr.span, variant));
         }
 
@@ -307,7 +308,7 @@ impl EnumFormat {
     }
 }
 
-fn apply_modes(mut format: Format, modes: &Modes) -> Format {
+fn apply_modes(mut format: Format, modes: &ReformationAttribute) -> Format {
     if modes.no_regex {
         format.map_substrings(escape_regex);
     } else {
