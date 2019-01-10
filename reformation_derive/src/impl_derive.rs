@@ -132,13 +132,13 @@ fn tuple_struct_from_captures(input: &DeriveInput, args: &ArgumentsPos) -> Token
 }
 
 /// Generate token stream with `from_captures` method for structs of type
-/// ```
+/// `
 /// struct Ident{
 ///     name1: ty1,
 ///     name2: ty2,
 ///     ...
 /// };
-/// ```
+/// `
 fn struct_from_captures(input: &DeriveInput, args: &ArgumentsNamed) -> TokenStream {
     let (_, ty_gen, _) = input.generics().split_for_impl();
     let ty_gen = ty_gen.as_turbofish();
