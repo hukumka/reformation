@@ -16,7 +16,7 @@ pub struct ReformationAttribute {
 
     pub slack: bool,
     pub no_regex: bool,
-    pub override_where: Option<WhereClause>,
+    pub override_where: Option<Option<WhereClause>>,
 }
 
 impl ReformationAttribute {
@@ -72,7 +72,7 @@ impl Parse for ReformationAttribute {
 enum Mode{
     Str(String),
     BoolParam(Ident),
-    WhereClauseParam(WhereClause)
+    WhereClauseParam(Option<WhereClause>)
 }
 
 impl Parse for Mode{
@@ -82,10 +82,15 @@ impl Parse for Mode{
             let ident: Ident = input.parse()?;
             let _eq: Token![=] = input.parse()?;
             if ident.to_string() == "override_where"{
-                // #[reformation("blabla", override_where={where T: })]
-                let clause;
-                bracketed!(clause in input);
-                let clause: WhereClause = clause.parse()?;
+                // #[reformation("blabla", override_where="where T: Clone")]
+                let clause: Lit = input.parse()?;
+                let s = match clause{
+                    Lit::Str(s) => s.value(),
+                    _ =>{
+                        return Err(syn::Error::new_spanned(clause, "Expected string literal."));
+                    }
+                };
+                let clause: Option<WhereClause> = syn::parse_str(&s)?;
                 Ok(Mode::WhereClauseParam(clause))
             }else{
                 let true_: Expr = input.parse()?;

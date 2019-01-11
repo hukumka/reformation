@@ -67,9 +67,13 @@ impl DeriveInput {
         &self.final_regex_str
     }
 
-    fn apply_where(&mut self){
-        for p in self.generics.type_params_mut(){
-            p.bounds.push(parse_quote!(::reformation::Reformation));
+    fn apply_where(&mut self, attributes: ReformationAttribute){
+        if let Some(clause) = attributes.override_where{
+            self.generics.where_clause = clause;
+        }else{
+            for p in self.generics.type_params_mut(){
+                p.bounds.push(parse_quote!(::reformation::Reformation));
+            }
         }
     }
 }
@@ -167,16 +171,19 @@ impl DeriveInput {
 
         let data = input.data;
         let attrs = input.attrs;
+        let attributes;
         match data {
             Data::Struct(struct_) => {
                 let format = StructFormat::parse(span, attrs)?;
                 arguments = Arguments::parse_struct(struct_, &format)?;
                 final_regex_str = format.build_string()?;
+                attributes = format.attributes;
             }
             Data::Enum(enum_) => {
                 let format = EnumFormat::parse(span, attrs)?;
                 arguments = Arguments::parse_enum(&enum_, &format)?;
                 final_regex_str = format.build_string()?;
+                attributes = format.attributes;
             }
             Data::Union(_) => {
                 return Err(errors::unions_are_not_supported(span));
@@ -188,7 +195,7 @@ impl DeriveInput {
             arguments,
             final_regex_str,
         };
-        res.apply_where();
+        res.apply_where(attributes);
         Ok(res)
     }
 }
@@ -196,6 +203,7 @@ impl DeriveInput {
 struct StructFormat {
     span: Span,
     format: Format,
+    attributes: ReformationAttribute,
 }
 
 impl StructFormat {
@@ -205,7 +213,7 @@ impl StructFormat {
             .map_err(|e| errors::format_error(span, e))?;
 
         let format = apply_modes(format, &attr);
-        Ok(Self { span, format })
+        Ok(Self { span, format, attributes: attr })
     }
 
     fn build_string(&self) -> syn::Result<String> {
@@ -231,6 +239,7 @@ fn test_format_regex(span: Span, format: &Format) -> syn::Result<()> {
 struct EnumFormat {
     span: Span,
     format: Vec<Format>,
+    attributes: ReformationAttribute,
 }
 
 impl EnumFormat {
@@ -246,7 +255,7 @@ impl EnumFormat {
             })
             .collect();
         let format = format?;
-        Ok(Self { span, format })
+        Ok(Self { span, format, attributes: attr })
     }
 
     fn build_string(&self) -> syn::Result<String> {
