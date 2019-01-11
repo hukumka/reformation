@@ -50,6 +50,8 @@ fn fn_regex_token_stream(input: &DeriveInput) -> TokenStream {
     let res = quote! {
         fn regex_str() -> &'static str{
             // cannot use lazy_static, since it cannot access generic types
+            // Mutating static mut is unsafe, but ok then used with `Once` sync primitive
+            // see example at https://doc.rust-lang.org/std/sync/struct.Once.html
             let re = unsafe{
                 static mut RE: Option<String> = None;
                 static INIT: std::sync::Once = std::sync::Once::new();
@@ -233,21 +235,27 @@ fn impl_from_str(ident: &Ident, generics: &Generics) -> TokenStream {
             type Err = ::reformation::Error;
 
             fn from_str(string: &str) -> Result<Self, ::reformation::Error>{
+                // cannot use lazy_static, since it cannot access generic types
+                // Mutating static mut is unsafe, but ok then used with `Once` sync primitive
+                // see example at https://doc.rust-lang.org/std/sync/struct.Once.html
                 let re = unsafe{
-                    static mut RE: Option<Result<::reformation::Regex, ::reformation::RegexError>> = None;
+                    static mut RE: Option<::reformation::Regex> = None;
                     static ONCE: std::sync::Once = std::sync::Once::new();
                     ONCE.call_once(||{
                         let re = #as_reformation::regex_str();
-                        RE = Some(::reformation::Regex::new(re));
+                        let re = ::reformation::Regex::new(re)
+                            .unwrap_or_else(|x|{
+                                // Panicking is allowed due to 'poisoning'
+                                // docs reference: https://doc.rust-lang.org/std/sync/struct.Once.html#method.call_once
+                                // poisoning explanation: https://doc.rust-lang.org/std/sync/struct.Mutex.html#poisoning
+                                panic!("Cannot compile regex for {}: {}", #ident2, x)
+                            });
+                        RE = Some(re);
                     });
                     &RE
                 };
 
-                let re = re.as_ref().unwrap_or_else(|| unreachable!())
-                    .as_ref()
-                    .unwrap_or_else(|x|{
-                        panic!("Cannot compile regex for {}: {}", #ident2, x)
-                    });
+                let re = re.as_ref().unwrap_or_else(|| unreachable!());
 
                 // get captures for regular expression and delegete to from_captures method
                 let captures = re.captures(string).ok_or_else(||{
