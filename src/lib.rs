@@ -195,6 +195,8 @@ pub use reformation_derive::*;
 
 pub use lazy_static::lazy_static;
 pub use regex::{Captures, Regex, Error as RegexError};
+
+use spin::Once;
 use std::fmt;
 
 pub type Error = Box<std::error::Error>;
@@ -220,11 +222,22 @@ pub trait Reformation: Sized {
     /// regular expression for matching this struct
     fn regex_str() -> &'static str;
 
-    // Can be calculated from regex_str, but this method guaranties no
-    // recalculations each parse and does not make by hand implementing
-    // much more difficult, although MORE error prone.
     /// number of used capture groups.
-    fn captures_count() -> usize;
+    fn captures_count() -> usize{
+        // By default calculated from regex_str.
+        // Setting explicit value by hand avoids
+        // any extra cost and can be inlined in nested structs, but
+        // more error prone.
+        static ONCE: Once<usize> = Once::new();
+        let count = ONCE.call_once(||{
+            let re = Regex::new(Self::regex_str()).unwrap();
+            if re.capture_names().flatten().next().is_some(){
+                panic!("Regular expression shouldn't contain any named capture groups");
+            }
+            re.capture_locations().len()
+        });
+        *count
+    }
 
     /// create instance of function from captures with given offset
     fn from_captures(c: &Captures, offset: usize) -> Result<Self, Error>;
