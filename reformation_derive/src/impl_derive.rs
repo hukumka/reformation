@@ -1,6 +1,5 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Generics, Ident};
 
 use crate::derive_input::{
     Arguments, ArgumentsCases, ArgumentsNamed, ArgumentsPos, DeriveInput, EnumVariant,
@@ -8,11 +7,9 @@ use crate::derive_input::{
 
 /// Generate ```TokenStream``` with implementation of ```Reformation``` and ```FromStr``` for `input`
 pub fn impl_all(input: &DeriveInput) -> TokenStream {
-    let from_str = impl_from_str(input.ident(), input.generics());
     let reformation = impl_reformation(input);
     let res = quote! {
         #reformation
-        //#from_str
     };
     res
 }
@@ -43,7 +40,6 @@ fn impl_reformation(input: &DeriveInput) -> TokenStream {
 fn fn_parse_token_stream(input: &DeriveInput) -> TokenStream{
     let ident = input.ident();
     let ident_str = ident.to_string();
-    let (_, type_gen, _) = input.generics().split_for_impl();
     quote! {
         fn parse<'b: 'input>(string: &'b str) -> Result<Self, ::reformation::Error>{
             // cannot use lazy_static, since it cannot access generic types
@@ -270,59 +266,6 @@ fn enum_variant_from_captures(derive_input: &DeriveInput, variant: &EnumVariant)
             offset += 1;
         };
         res
-    }
-}
-
-/// Generate ```TokenStream``` with implementation of ```FromStr``` for `DeriveInput` with name `ident`
-fn impl_from_str(ident: &Ident, generics: &Generics) -> TokenStream {
-    let mut impl_gen = generics.clone();
-    impl_gen.params.push(parse_quote!('input));
-    let (impl_gen, _, _) = impl_gen.split_for_impl();
-    let (_, type_gen, where_clause) = generics.split_for_impl();
-    // work around inability to use variable twice
-    let ident2 = ident.to_string();
-    let as_reformation = quote!(<#ident #type_gen as ::reformation::Reformation>);
-    let as_reformation = &as_reformation;
-    let as_reformation1 = as_reformation;
-    let as_reformation2 = as_reformation;
-    quote! {
-        impl #impl_gen std::str::FromStr for #ident #type_gen #where_clause{
-            type Err = ::reformation::Error;
-
-            fn from_str(string: &'input str) -> Result<Self, ::reformation::Error>{
-                // cannot use lazy_static, since it cannot access generic types
-                // Mutating static mut is unsafe, but ok then used with `Once` sync primitive
-                // see example at https://doc.rust-lang.org/std/sync/struct.Once.html
-                let re = unsafe{
-                    static mut RE: Option<::reformation::Regex> = None;
-                    static ONCE: std::sync::Once = std::sync::Once::new();
-                    ONCE.call_once(||{
-                        let re = #as_reformation::regex_str();
-                        let re = ::reformation::Regex::new(re)
-                            .unwrap_or_else(|x|{
-                                // Panicking is allowed due to 'poisoning'
-                                // docs reference: https://doc.rust-lang.org/std/sync/struct.Once.html#method.call_once
-                                // poisoning explanation: https://doc.rust-lang.org/std/sync/struct.Mutex.html#poisoning
-                                panic!("Cannot compile regex for {}: {}", #ident2, x)
-                            });
-                        RE = Some(re);
-                    });
-                    &RE
-                };
-
-                let re = re.as_ref().unwrap_or_else(|| unreachable!());
-
-                // get captures for regular expression and delegete to from_captures method
-                let captures = re.captures(string).ok_or_else(||{
-                    ::reformation::NoRegexMatch{
-                        format: #as_reformation1::regex_str(),
-                        request: string.to_string(),
-                    }
-                })?;
-                // ignore capture group mathing entire expression
-                #as_reformation2::from_captures(&captures, 1)
-            }
-        }
     }
 }
 
