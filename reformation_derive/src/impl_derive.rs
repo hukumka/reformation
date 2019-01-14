@@ -94,6 +94,7 @@ fn fn_regex_token_stream(input: &DeriveInput) -> TokenStream {
     }
     let regex_args = args.regex_arguments();
     let res = quote! {
+        #[inline]
         fn regex_str() -> &'static str{
             // cannot use lazy_static, since it cannot access generic types
             // Mutating static mut is unsafe, but ok then used with `Once` sync primitive
@@ -129,6 +130,7 @@ fn fn_captures_count_token_stream(input: &DeriveInput) -> TokenStream {
     }
     let types = args.types();
     quote! {
+        #[inline]
         fn captures_count() -> usize{
             let mut acc = #base_count;
             #(
@@ -153,6 +155,7 @@ fn fn_from_captures_token_stream(input: &DeriveInput) -> TokenStream {
 fn empty_struct_from_captures(input: &DeriveInput) -> TokenStream {
     let name = input.ident();
     quote! {
+        #[inline]
         fn from_captures(captures: &::reformation::Captures<'input>, offset: usize) -> Result<Self, ::reformation::Error>{
             Ok(#name)
         }
@@ -166,6 +169,7 @@ fn tuple_struct_from_captures(input: &DeriveInput, args: &ArgumentsPos) -> Token
     let ident = input.ident();
     let args2 = args;
     quote! {
+        #[inline]
         fn from_captures(captures: &::reformation::Captures<'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
             let res = #ident #ty_gen(
                 #({
@@ -196,6 +200,7 @@ fn struct_from_captures(input: &DeriveInput, args: &ArgumentsNamed) -> TokenStre
     let arg_types2 = arg_types;
     let (default_arg, default_type) = args.default_fields();
     let res = quote! {
+        #[inline]
         fn from_captures(captures: &::reformation::Captures<'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
             let res = #ident #ty_gen{
                 #(
@@ -223,6 +228,7 @@ fn enum_from_captures(input: &DeriveInput, args: &ArgumentsCases) -> TokenStream
         .iter()
         .map(|x| enum_variant_from_captures(input, x));
     quote! {
+        #[inline]
         fn from_captures(captures: &::reformation::Captures<'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
             #(#variants)*
 

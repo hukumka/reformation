@@ -16,7 +16,6 @@ categories = ["parsing"]
 # pub
 regex = "1"
 # private
-spin = "0.5.0"
 reformation_derive = {path="reformation_derive", version="0.3.1"}
 derive_more = "0.13.0"
 

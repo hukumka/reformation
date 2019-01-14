@@ -195,7 +195,6 @@ extern crate derive_more;
 
 pub use reformation_derive::*;
 pub use regex::{Captures, Regex, Error as RegexError};
-use spin::Once;
 
 #[derive(Debug, Display)]
 pub enum Error{
@@ -220,41 +219,19 @@ pub trait Reformation<'a>: Sized {
     fn regex_str() -> &'static str;
 
     /// number of used capture groups.
-    fn captures_count() -> usize{
-        // By default calculated from regex_str.
-        // Setting explicit value by hand avoids
-        // any extra cost and can be inlined in nested structs, but
-        // more error prone.
-        static ONCE: Once<usize> = Once::new();
-        let count = ONCE.call_once(||{
-            let re = Regex::new(Self::regex_str()).unwrap();
-            if re.capture_names().flatten().next().is_some(){
-                panic!("Regular expression shouldn't contain any named capture groups");
-            }
-            re.capture_locations().len()
-        });
-        *count
-    }
+    // Can be calculated from regex_str, but
+    // setting explicit value by hand avoids
+    // any extra cost and can be inlined in nested structs, but
+    // more error prone.
+    fn captures_count() -> usize;
 
     /// create instance of function from captures with given offset
     fn from_captures(c: &Captures<'a>, offset: usize) -> Result<Self, Error>;
 
     /// parse struct from str
-    fn parse<'b: 'a>(input: &'b str) -> Result<Self, Error>{
-        static ONCE: Once<Regex> = Once::new();
-        let re = ONCE.call_once(||{
-            let s = format!(r"{}", Self::regex_str());
-            let re = Regex::new(&s).unwrap();
-            re
-        });
-        let captures = re.captures(input).ok_or_else(||{
-            Error::NoRegexMatch(NoRegexMatch{
-                format: re.as_str(),
-                request: input.to_string(),
-            })
-        })?;
-        Self::from_captures(&captures, 1)
-    }
+    // cannot use lazy_static and such because of
+    // https://stackoverflow.com/questions/45892973/is-it-possible-for-different-instances-of-a-generic-function-to-have-different-s
+    fn parse<'b: 'a>(input: &'b str) -> Result<Self, Error>;
 }
 
 macro_rules! group_impl_parse_primitive{
@@ -280,6 +257,12 @@ macro_rules! group_impl_parse_primitive{
                     .ok_or_else(|| Error::DoesNotContainGroup(DoesNotContainGroup))?
                     .as_str().parse::<$name>()
                     .map_err(|e| Error::Other(e.to_string()))?;
+                Ok(res)
+            }
+
+            #[inline]
+            fn parse<'b: 'a>(input: &'b str) -> Result<Self, Error>{
+                let res = input.parse::<$name>().map_err(|e| Error::Other(e.to_string()))?;
                 Ok(res)
             }
         }
@@ -311,6 +294,40 @@ impl<'a, T: Reformation<'a>> Reformation<'a> for Option<T>{
         }else{
             Ok(None)
         }
+    }
+
+    #[inline]
+    fn parse<'b: 'a>(input: &'b str) -> Result<Self, Error>{
+        match T::parse(input) {
+            Ok(x) => Ok(Some(x)),
+            Err(Error::DoesNotContainGroup(_)) => Ok(None),
+            Err(e) => Err(e)
+        }
+    }
+}
+
+impl<'a> Reformation<'a> for &'a str{
+    #[inline]
+    fn regex_str() -> &'static str{
+        "(.*?)"
+    }
+
+    #[inline]
+    fn captures_count() -> usize{
+        1
+    }
+
+    #[inline]
+    fn from_captures(captures: &Captures<'a>, offset: usize) -> Result<Self, Error>{
+        let res = captures.get(offset)
+            .ok_or_else(|| Error::DoesNotContainGroup(DoesNotContainGroup))?
+            .as_str();
+        Ok(res)
+    }
+
+    #[inline]
+    fn parse<'b: 'a>(input: &'b str) -> Result<Self, Error>{
+        Ok(input)
     }
 }
 
