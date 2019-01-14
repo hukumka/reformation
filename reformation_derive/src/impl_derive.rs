@@ -27,6 +27,11 @@ fn impl_reformation(input: &DeriveInput) -> TokenStream {
     let from_captures = fn_from_captures_token_stream(&input);
     let parse = fn_parse_token_stream(&input);
 
+    if input.generics().type_params().next().is_some(){
+        return quote!{
+            compile_error!{"Generic type parameters not supported. "}
+        };
+    }
     quote! {
         impl #impl_gen ::reformation::Reformation<'input> for #ident #type_gen #where_clause{
             #regex_tts

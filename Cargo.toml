@@ -12,6 +12,8 @@ travis-ci = { repository = "hukumka/reformation" }
 keywords = ["parsing", "regex"]
 categories = ["parsing"]
 
+debug = true
+
 [dependencies]
 # pub
 regex = "1"
