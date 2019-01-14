@@ -30,7 +30,7 @@
 //! }
 //!
 //! fn main(){
-//!     let date: Date = "2018-12-22 20:23".parse().unwrap();
+//!     let date = Date::parse("2018-12-22 20:23").unwrap();
 //!
 //!     assert_eq!(date.year, 2018);
 //!     assert_eq!(date.month, 12);
@@ -54,7 +54,7 @@
 //! struct Empty;
 //!
 //! fn main(){
-//!     let p: Predicate = "Empty -> X".parse().unwrap();
+//!     let p = Predicate::parse("Empty -> X").unwrap();
 //!     assert_eq!(p.0, Empty);
 //!     assert_eq!(p.1, 'X');
 //! }
@@ -74,13 +74,13 @@
 //! }
 //!
 //! fn main(){
-//!     let queen: Ant = "Queen(We are swarm)".parse().unwrap();
+//!     let queen = Ant::parse("Queen(We are swarm)").unwrap();
 //!     assert_eq!(queen, Ant::Queen("We are swarm".to_string()));
 //!
-//!     let worker: Ant = "Worker(900000)".parse().unwrap();
+//!     let worker = Ant::parse("Worker(900000)").unwrap();
 //!     assert_eq!(worker, Ant::Worker(900000));
 //!
-//!     let warrior: Ant = "Warrior".parse().unwrap();
+//!     let warrior = Ant::parse("Warrior").unwrap();
 //!     assert_eq!(warrior, Ant::Warrior);
 //! }
 //! ```
@@ -105,7 +105,7 @@
 //! }
 //!
 //! fn main(){
-//!     let v: Vec = "Vec{-1, 1}".parse().unwrap();
+//!     let v= Vec::parse("Vec{-1, 1}").unwrap();
 //!     assert_eq!(v.x, -1);
 //!     assert_eq!(v.y, 1);
 //! }
@@ -127,11 +127,11 @@
 //! }
 //!
 //! fn main(){
-//!     let v: Vec = "Vec{-1,1}".parse().unwrap();
+//!     let v = Vec::parse("Vec{-1,1}").unwrap();
 //!     assert_eq!(v.x, -1);
 //!     assert_eq!(v.y, 1);
 //!
-//!     let r: Vec = "Vec{15,   2}".parse().unwrap();
+//!     let r = Vec::parse("Vec{15,   2}").unwrap();
 //!     assert_eq!(r.x, 15);
 //!     assert_eq!(r.y, 2);
 //! }
@@ -150,11 +150,11 @@
 //! }
 //!
 //! fn main(){
-//!     let v: Vec = "Vec(-1;1)".parse().unwrap();
+//!     let v = Vec::parse("Vec(-1;1)").unwrap();
 //!     assert_eq!(v.x, -1);
 //!     assert_eq!(v.y, 1);
 //!
-//!     let r: Vec = "Vec(15;   2)".parse().unwrap();
+//!     let r = Vec::parse("Vec(15;   2)").unwrap();
 //!     assert_eq!(r.x, 15);
 //!     assert_eq!(r.y, 2);
 //! }
@@ -183,42 +183,39 @@
 //! fn main(){
 //!     // spaces between coordinates does not matter, since any amount of spaces
 //!     // matches to r"\s*"
-//!     let v: Vec = "Vec{-0.4,1e-3,   2e-3}".parse().unwrap();
+//!     let v = Vec::parse("Vec{-0.4,1e-3,   2e-3}").unwrap();
 //!
 //!     assert_eq!(v.x, -0.4);
 //!     assert_eq!(v.y, 0.001);
 //!     assert_eq!(v.z, 0.002);
 //! }
 //! ```
+#[macro_use]
+extern crate derive_more;
 
 pub use reformation_derive::*;
-
-pub use lazy_static::lazy_static;
 pub use regex::{Captures, Regex, Error as RegexError};
-
 use spin::Once;
-use std::fmt;
 
-pub type Error = Box<std::error::Error>;
+#[derive(Debug, Display)]
+pub enum Error{
+    NoRegexMatch(NoRegexMatch),
+    DoesNotContainGroup(DoesNotContainGroup),
+    #[display(fmt = "{:?}", "_0")]
+    Other(String),
+}
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
+pub struct DoesNotContainGroup;
+
+#[derive(Debug, Display)]
+#[display(fmt = "No regex match: regex {:?} does not match  string {:?}", format, request)]
 pub struct NoRegexMatch {
     pub format: &'static str,
     pub request: String,
 }
 
-impl std::error::Error for NoRegexMatch {}
-impl fmt::Display for NoRegexMatch {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "String {:?} does not match format r{:?}",
-            self.format, self.request
-        )
-    }
-}
-
-pub trait Reformation: Sized {
+pub trait Reformation<'a>: Sized {
     /// regular expression for matching this struct
     fn regex_str() -> &'static str;
 
@@ -240,7 +237,24 @@ pub trait Reformation: Sized {
     }
 
     /// create instance of function from captures with given offset
-    fn from_captures(c: &Captures, offset: usize) -> Result<Self, Error>;
+    fn from_captures(c: &Captures<'a>, offset: usize) -> Result<Self, Error>;
+
+    /// parse struct from str
+    fn parse<'b: 'a>(input: &'b str) -> Result<Self, Error>{
+        static ONCE: Once<Regex> = Once::new();
+        let re = ONCE.call_once(||{
+            let s = format!(r"{}", Self::regex_str());
+            let re = Regex::new(&s).unwrap();
+            re
+        });
+        let captures = re.captures(input).ok_or_else(||{
+            Error::NoRegexMatch(NoRegexMatch{
+                format: re.as_str(),
+                request: input.to_string(),
+            })
+        })?;
+        Self::from_captures(&captures, 1)
+    }
 }
 
 macro_rules! group_impl_parse_primitive{
@@ -249,20 +263,23 @@ macro_rules! group_impl_parse_primitive{
     };
 
     (@single $re: expr, $name: ty) => {
-        impl Reformation for $name{
+        impl<'a> Reformation<'a> for $name{
             #[inline]
-            fn regex_str()->&'static str{
+            fn regex_str() -> &'static str{
                 $re
             }
 
             #[inline]
-            fn captures_count()->usize{
+            fn captures_count() -> usize{
                 1
             }
 
             #[inline]
-            fn from_captures(c: &Captures, offset: usize)->Result<Self, Box<std::error::Error>>{
-                let res = c.get(offset).unwrap().as_str().parse::<$name>()?;
+            fn from_captures(c: &Captures<'a>, offset: usize) -> Result<Self, Error>{
+                let res = c.get(offset)
+                    .ok_or_else(|| Error::DoesNotContainGroup(DoesNotContainGroup))?
+                    .as_str().parse::<$name>()
+                    .map_err(|e| Error::Other(e.to_string()))?;
                 Ok(res)
             }
         }
@@ -275,103 +292,26 @@ group_impl_parse_primitive! {r"((?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?)",
 group_impl_parse_primitive! {r"(.*)", String}
 group_impl_parse_primitive! {r"(.)", char}
 
-/// Creates function for parsing tuple of values from
-/// strings corresponding to given template.
-///
-/// usage: `create_parse_fn!{function_name, re, types..}`
-///
-/// where:
-/// + function_name -- Name of function to be created.
-/// + re -- Format string for matching arguments. Format string is regular
-///     expression, preprocessed by macro, and rules simular to regexprs
-///     applies to it. In order to macro work properly usage of capture
-///     groups should be avoided. Non capturing `(:?groups)` are fine.
-/// + types.. -- sequence of types expected as function output. Each type must
-///     implement trait ```ParsePrimitive```. Default implementors:
-///     + unsigned integers: u8, u16, u32, u64, u128, usize
-///     + signed integers: i8, i16, i16, i64, i128, isize
-///     + floating point numbers: f32, f64,
-///     + String
-///
-/// ```
-/// use reformation::create_parse_fn;
-///
-/// // "\(" and "\)" are escaped, since they are special characters in
-/// // regular expression syntax
-/// create_parse_fn!{parse_vec, r"^Vec\({}, {}\)$", i32, i32}
-///
-///
-/// fn main(){
-///     let (x, y) = parse_vec("Vec(-16, 8)").unwrap();
-///     assert_eq!(x, -16i32);
-///     assert_eq!(y, 8i32);
-/// }
-/// ```
-///
-/// ```
-/// use reformation::create_parse_fn;
-///
-/// // "\{{" and "\}}" is the way to use symbols {, } in format string,
-/// // since { is special symbol for formatting and also special symbol for
-/// // regular expressions, so it needs to be escaped twice.
-/// create_parse_fn!{parse_curly, r"^Vec\{{{}, {}, {}\}}$", i32, i32, usize}
-///
-/// fn main(){
-///     let (x, y, z) = parse_curly("Vec{-16, 8, 800}").unwrap();
-///     assert_eq!(x, -16i32);
-///     assert_eq!(y, 8i32);
-///     assert_eq!(z, 800usize);
-/// }
-///
-/// ```
-///
-/// You can use features of regular expression
-/// ```
-/// use reformation::create_parse_fn;
-///
-/// // Ignore spaces between coordinates
-/// create_parse_fn!{parse_vec, r"^Vec\({}, {}\)$", f32, f32}
-///
-/// fn main(){
-///     let (x, y) = parse_vec("Vec(-16, 8e-3)").unwrap();
-///     assert_eq!(x, -16.0);
-///     assert_eq!(y, 0.008);
-/// }
-/// ```
-#[macro_export]
-macro_rules! create_parse_fn{
-    ($name: ident, $re: expr, $($res: ty),*) => {
-        fn $name(s: &str)->Result<($($res),*), Box<std::error::Error>>{
-            create_parse_fn!(@body s, $re, $($res),*)
-        }
-    };
-    (@body $str: expr, $re: expr, $($res: ty),*) => {
-        {
-            type OkType = ($($res),*);
+impl<'a, T: Reformation<'a>> Reformation<'a> for Option<T>{
+    #[inline]
+    fn regex_str() -> &'static str{
+        T::regex_str()
+    }
 
-            // create regex automation with captures for each argument
-            ::reformation::lazy_static!{
-                static ref REGEX: ::reformation::Regex = {
-                    let re_str = format!($re, $(<$res as ::reformation::Reformation>::regex_str()),*);
-                    ::reformation::Regex::new(&re_str).unwrap()
-                };
-            }
+    #[inline]
+    fn captures_count() -> usize{
+        T::captures_count()
+    }
 
-            let captures = REGEX.captures($str).ok_or_else(||{
-                ::reformation::NoRegexMatch{
-                    format: $re,
-                    request: $str.to_string()
-                }
-            })?;
-            let mut i=0;
-            Ok((
-                $({
-                    i += 1;
-                    captures.get(i).unwrap().as_str().parse::<$res>()?
-                }),*
-            ))
+    #[inline]
+    fn from_captures(captures: &Captures<'a>, offset: usize) -> Result<Self, Error>{
+        if captures.get(offset).is_some(){
+            T::from_captures(captures, offset)
+                .map(|x| Some(x))
+        }else{
+            Ok(None)
         }
-    };
+    }
 }
 
 #[cfg(test)]

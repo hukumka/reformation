@@ -33,17 +33,28 @@ struct Crab {
     right_eye: String,
 }
 
-fn main() {
-    let a: Vec = "Vec{1, 2, 3}".parse().unwrap();
-    println!("{:?}", a);
+#[derive(Debug, Reformation)]
+#[reformation(r"(vec might be here: {})?")]
+struct Ovec(Option<Vec>);
 
-    // Vec regex is in slack mode, allowing arbitrary amount of spaces after coma.
-    let r: Rect = "Rect{Vec{1, 1, 0}; Vec{-3.e-5,  0.03,3}}".parse().unwrap();
-    println!("{:?}", r);
+fn main() {
+    let a = Vec::parse("Vec{1, 2, 3}").unwrap();
+    println!("{:?}", a);
 
     // Even through such structs can be combined, but do not overuse it, since it will produce horrific regular expressions
     println!("{:?}", Rect::regex_str());
 
-    let pirate_crab: Crab = r"(\|)(x_^)(|/)".parse().unwrap();
+    // Vec regex is in slack mode, allowing arbitrary amount of spaces after coma.
+    let r = Rect::parse("Rect{Vec{1, 1, 0}; Vec{-3.e-5,  0.03,3}}").unwrap();
+    println!("{:?}", r);
+
+
+    let pirate_crab = Crab::parse(r"(\|)(x_^)(|/)").unwrap();
     println!("{:?}", pirate_crab);
+
+    let b = Ovec::parse("vec might be here: Vec{0, 0, 0}").unwrap();
+    println!("{:?}", b);
+
+    let c = Ovec::parse("nope").unwrap();
+    println!("{:?}", c);
 }

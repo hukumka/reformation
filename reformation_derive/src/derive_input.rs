@@ -72,7 +72,7 @@ impl DeriveInput {
             self.generics.where_clause = clause;
         }else{
             for p in self.generics.type_params_mut(){
-                p.bounds.push(parse_quote!(::reformation::Reformation));
+                p.bounds.push(parse_quote!(::reformation::Reformation<'input>));
             }
         }
     }

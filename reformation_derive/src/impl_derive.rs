@@ -12,7 +12,7 @@ pub fn impl_all(input: &DeriveInput) -> TokenStream {
     let reformation = impl_reformation(input);
     let res = quote! {
         #reformation
-        #from_str
+        //#from_str
     };
     res
 }
@@ -20,17 +20,63 @@ pub fn impl_all(input: &DeriveInput) -> TokenStream {
 /// Generate ```TokenStream``` with implementation of ```Reformation``` for `input`
 fn impl_reformation(input: &DeriveInput) -> TokenStream {
     let ident = input.ident();
-    let (impl_gen, type_gen, where_clause) = input.generics().split_for_impl();
+    let mut impl_gen = input.generics().clone();
+    impl_gen.params.push(parse_quote!('input));
+    let (impl_gen, _, _) = impl_gen.split_for_impl();
+    let (_, type_gen, where_clause) = input.generics().split_for_impl();
 
     let regex_tts = fn_regex_token_stream(&input);
     let count = fn_captures_count_token_stream(&input);
     let from_captures = fn_from_captures_token_stream(&input);
+    let parse = fn_parse_token_stream(&input);
 
     quote! {
-        impl #impl_gen ::reformation::Reformation for #ident #type_gen #where_clause{
+        impl #impl_gen ::reformation::Reformation<'input> for #ident #type_gen #where_clause{
             #regex_tts
             #count
             #from_captures
+            #parse
+        }
+    }
+}
+
+fn fn_parse_token_stream(input: &DeriveInput) -> TokenStream{
+    let ident = input.ident();
+    let ident_str = ident.to_string();
+    let (_, type_gen, _) = input.generics().split_for_impl();
+    quote! {
+        fn parse<'b: 'input>(string: &'b str) -> Result<Self, ::reformation::Error>{
+            // cannot use lazy_static, since it cannot access generic types
+            // Mutating static mut is unsafe, but ok then used with `Once` sync primitive
+            // see example at https://doc.rust-lang.org/std/sync/struct.Once.html
+            let re = unsafe{
+                static mut RE: Option<::reformation::Regex> = None;
+                static ONCE: std::sync::Once = std::sync::Once::new();
+                ONCE.call_once(||{
+                    let re = Self::regex_str();
+                    let re = ::reformation::Regex::new(re)
+                        .unwrap_or_else(|x|{
+                            // Panicking is allowed due to 'poisoning'
+                            // docs reference: https://doc.rust-lang.org/std/sync/struct.Once.html#method.call_once
+                            // poisoning explanation: https://doc.rust-lang.org/std/sync/struct.Mutex.html#poisoning
+                            panic!("Cannot compile regex for {}: {}", #ident_str, x)
+                        });
+                    RE = Some(re);
+                });
+                &RE
+            };
+
+            let re = re.as_ref().unwrap_or_else(|| unreachable!());
+
+            // get captures for regular expression and delegete to from_captures method
+            let captures = re.captures(string).ok_or_else(||{
+                ::reformation::Error::NoRegexMatch(::reformation::NoRegexMatch{
+                    format: Self::regex_str(),
+                    request: string.to_string(),
+                })
+            })?;
+            // ignore capture group mathing entire expression
+            Self::from_captures(&captures, 1)
         }
     }
 }
@@ -107,7 +153,7 @@ fn fn_from_captures_token_stream(input: &DeriveInput) -> TokenStream {
 fn empty_struct_from_captures(input: &DeriveInput) -> TokenStream {
     let name = input.ident();
     quote! {
-        fn from_captures(captures: &::reformation::Captures, offset: usize) -> Result<Self, ::reformation::Error>{
+        fn from_captures(captures: &::reformation::Captures<'input>, offset: usize) -> Result<Self, ::reformation::Error>{
             Ok(#name)
         }
     }
@@ -120,7 +166,7 @@ fn tuple_struct_from_captures(input: &DeriveInput, args: &ArgumentsPos) -> Token
     let ident = input.ident();
     let args2 = args;
     quote! {
-        fn from_captures(captures: &::reformation::Captures, mut offset: usize) -> Result<Self, ::reformation::Error>{
+        fn from_captures(captures: &::reformation::Captures<'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
             let res = #ident #ty_gen(
                 #({
                     let res = <#args as ::reformation::Reformation>::from_captures(captures, offset)?;
@@ -150,7 +196,7 @@ fn struct_from_captures(input: &DeriveInput, args: &ArgumentsNamed) -> TokenStre
     let arg_types2 = arg_types;
     let (default_arg, default_type) = args.default_fields();
     let res = quote! {
-        fn from_captures(captures: &::reformation::Captures, mut offset: usize) -> Result<Self, ::reformation::Error>{
+        fn from_captures(captures: &::reformation::Captures<'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
             let res = #ident #ty_gen{
                 #(
                     #arg_names: {
@@ -177,7 +223,7 @@ fn enum_from_captures(input: &DeriveInput, args: &ArgumentsCases) -> TokenStream
         .iter()
         .map(|x| enum_variant_from_captures(input, x));
     quote! {
-        fn from_captures(captures: &::reformation::Captures, mut offset: usize) -> Result<Self, ::reformation::Error>{
+        fn from_captures(captures: &::reformation::Captures<'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
             #(#variants)*
 
             panic!("No mathing variants")
@@ -223,7 +269,10 @@ fn enum_variant_from_captures(derive_input: &DeriveInput, variant: &EnumVariant)
 
 /// Generate ```TokenStream``` with implementation of ```FromStr``` for `DeriveInput` with name `ident`
 fn impl_from_str(ident: &Ident, generics: &Generics) -> TokenStream {
-    let (impl_gen, type_gen, where_clause) = generics.split_for_impl();
+    let mut impl_gen = generics.clone();
+    impl_gen.params.push(parse_quote!('input));
+    let (impl_gen, _, _) = impl_gen.split_for_impl();
+    let (_, type_gen, where_clause) = generics.split_for_impl();
     // work around inability to use variable twice
     let ident2 = ident.to_string();
     let as_reformation = quote!(<#ident #type_gen as ::reformation::Reformation>);
@@ -234,7 +283,7 @@ fn impl_from_str(ident: &Ident, generics: &Generics) -> TokenStream {
         impl #impl_gen std::str::FromStr for #ident #type_gen #where_clause{
             type Err = ::reformation::Error;
 
-            fn from_str(string: &str) -> Result<Self, ::reformation::Error>{
+            fn from_str(string: &'input str) -> Result<Self, ::reformation::Error>{
                 // cannot use lazy_static, since it cannot access generic types
                 // Mutating static mut is unsafe, but ok then used with `Once` sync primitive
                 // see example at https://doc.rust-lang.org/std/sync/struct.Once.html

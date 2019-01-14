@@ -27,23 +27,23 @@ enum MiniList {
 }
 
 fn main() {
-    let c: Color = "grey(64)".parse().unwrap();
+    let c = Color::parse("grey(64)").unwrap();
     println!("{:?}", c);
 
-    let c: Color = "blue=11, -23".parse().unwrap();
+    let c = Color::parse("blue=11, -23").unwrap();
     println!("{:?}", c);
 
-    let s: Superman = "Bird(-1.3)".parse().unwrap();
+    let s = Superman::parse("Bird(-1.3)").unwrap();
     assert_eq!(s, Superman::Bird(-1.3));
 
-    let l: MiniList = "[34]".parse().unwrap();
+    let l = MiniList::parse("[34]").unwrap();
     assert_eq!(l, MiniList::One(34));
 
-    let l: MiniList = "[34,22]".parse().unwrap();
+    let l = MiniList::parse("[34,22]").unwrap();
     assert_eq!(l, MiniList::Two(34, 22));
-    let l: MiniList = "[34,   22]".parse().unwrap();
+    let l = MiniList::parse("[34,   22]").unwrap();
     assert_eq!(l, MiniList::Two(34, 22));
 
-    let l: MiniList = "[]".parse().unwrap();
+    let l = MiniList::parse("[]").unwrap();
     assert_eq!(l, MiniList::Zero);
 }
