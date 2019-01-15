@@ -5,9 +5,9 @@
 #[macro_use]
 extern crate criterion;
 
-use reformation::Reformation;
+use reformation::{Reformation, Captures};
 use criterion::{Criterion, Fun};
-use regex::{Regex, Captures};
+use regex::Regex;
 use lazy_static::lazy_static;
 
 
@@ -45,12 +45,12 @@ impl<'a> Reformation<'a> for Version<'a>{
     }
 
     #[inline]
-    fn from_captures(captures: &Captures<'a>, offset: usize) -> Result<Self, reformation::Error>{
-        let s = captures.get(offset).unwrap().as_str();
+    fn from_captures<'b>(captures: &Captures<'b, 'a>, offset: usize) -> Result<Self, reformation::Error>{
+        let s = captures.get(offset).unwrap();
         Ok(Version(s))
     }
 
-    fn parse<'b: 'a>(_: &'b str) -> Result<Self, reformation::Error>{
+    fn parse(_: &'a str) -> Result<Self, reformation::Error>{
         // never actually used
         unimplemented!()
     }
@@ -68,12 +68,12 @@ impl<'a> Reformation<'a> for Braced<'a>{
     }
 
     #[inline]
-    fn from_captures(captures: &Captures<'a>, offset: usize) -> Result<Self, reformation::Error>{
-        let s = captures.get(offset).unwrap().as_str();
+    fn from_captures<'b>(captures: &Captures<'b, 'a>, offset: usize) -> Result<Self, reformation::Error>{
+        let s = captures.get(offset).unwrap();
         Ok(Braced(s))
     }
 
-    fn parse<'b: 'a>(_: &'b str) -> Result<Self, reformation::Error>{
+    fn parse(_: &'a str) -> Result<Self, reformation::Error>{
         // never actually used
         unimplemented!()
     }

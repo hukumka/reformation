@@ -194,7 +194,29 @@
 extern crate derive_more;
 
 pub use reformation_derive::*;
-pub use regex::{Captures, Regex, Error as RegexError};
+pub use regex::{CaptureLocations, Regex, Error as RegexError};
+
+
+#[derive(Copy, Clone)]
+pub struct Captures<'a, 't>{
+    captures: &'a CaptureLocations,
+    input: &'t str
+}
+
+impl<'a, 't> Captures<'a, 't>{
+    #[inline]
+    pub fn new(captures: &'a CaptureLocations, input: &'t str) -> Self{
+        Self{
+            captures,
+            input
+        }
+    }
+
+    #[inline]
+    pub fn get(&self, id: usize) -> Option<&'t str>{
+        self.captures.get(id).map(|(a, b)| &self.input[a..b])
+    }
+}
 
 #[derive(Debug, Display)]
 pub enum Error{
@@ -214,7 +236,7 @@ pub struct NoRegexMatch {
     pub request: String,
 }
 
-pub trait Reformation<'a>: Sized {
+pub trait Reformation<'t>: Sized {
     /// regular expression for matching this struct
     fn regex_str() -> &'static str;
 
@@ -226,12 +248,12 @@ pub trait Reformation<'a>: Sized {
     fn captures_count() -> usize;
 
     /// create instance of function from captures with given offset
-    fn from_captures(c: &Captures<'a>, offset: usize) -> Result<Self, Error>;
+    fn from_captures<'a>(c: &Captures<'a, 't>, offset: usize) -> Result<Self, Error>;
 
     /// parse struct from str
     // cannot use lazy_static and such because of
     // https://stackoverflow.com/questions/45892973/is-it-possible-for-different-instances-of-a-generic-function-to-have-different-s
-    fn parse<'b: 'a>(input: &'b str) -> Result<Self, Error>;
+    fn parse(input: &'t str) -> Result<Self, Error>;
 }
 
 macro_rules! group_impl_parse_primitive{
@@ -240,7 +262,7 @@ macro_rules! group_impl_parse_primitive{
     };
 
     (@single $re: expr, $name: ty) => {
-        impl<'a> Reformation<'a> for $name{
+        impl<'t> Reformation<'t> for $name{
             #[inline]
             fn regex_str() -> &'static str{
                 $re
@@ -252,16 +274,16 @@ macro_rules! group_impl_parse_primitive{
             }
 
             #[inline]
-            fn from_captures(c: &Captures<'a>, offset: usize) -> Result<Self, Error>{
+            fn from_captures<'a>(c: &Captures<'a, 't>, offset: usize) -> Result<Self, Error>{
                 let res = c.get(offset)
                     .ok_or_else(|| Error::DoesNotContainGroup(DoesNotContainGroup))?
-                    .as_str().parse::<$name>()
+                    .parse::<$name>()
                     .map_err(|e| Error::Other(e.to_string()))?;
                 Ok(res)
             }
 
             #[inline]
-            fn parse<'b: 'a>(input: &'b str) -> Result<Self, Error>{
+            fn parse(input: &'t str) -> Result<Self, Error>{
                 let res = input.parse::<$name>().map_err(|e| Error::Other(e.to_string()))?;
                 Ok(res)
             }
@@ -275,7 +297,7 @@ group_impl_parse_primitive! {r"((?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?)",
 group_impl_parse_primitive! {r"(.*)", String}
 group_impl_parse_primitive! {r"(.)", char}
 
-impl<'a, T: Reformation<'a>> Reformation<'a> for Option<T>{
+impl<'t, T: Reformation<'t>> Reformation<'t> for Option<T>{
     #[inline]
     fn regex_str() -> &'static str{
         T::regex_str()
@@ -287,7 +309,7 @@ impl<'a, T: Reformation<'a>> Reformation<'a> for Option<T>{
     }
 
     #[inline]
-    fn from_captures(captures: &Captures<'a>, offset: usize) -> Result<Self, Error>{
+    fn from_captures<'a>(captures: &Captures<'a, 't>, offset: usize) -> Result<Self, Error>{
         if captures.get(offset).is_some(){
             T::from_captures(captures, offset)
                 .map(|x| Some(x))
@@ -297,7 +319,7 @@ impl<'a, T: Reformation<'a>> Reformation<'a> for Option<T>{
     }
 
     #[inline]
-    fn parse<'b: 'a>(input: &'b str) -> Result<Self, Error>{
+    fn parse(input: &'t str) -> Result<Self, Error>{
         match T::parse(input) {
             Ok(x) => Ok(Some(x)),
             Err(Error::DoesNotContainGroup(_)) => Ok(None),
@@ -306,7 +328,7 @@ impl<'a, T: Reformation<'a>> Reformation<'a> for Option<T>{
     }
 }
 
-impl<'a> Reformation<'a> for &'a str{
+impl<'t> Reformation<'t> for &'t str{
     #[inline]
     fn regex_str() -> &'static str{
         "(.*?)"
@@ -318,15 +340,14 @@ impl<'a> Reformation<'a> for &'a str{
     }
 
     #[inline]
-    fn from_captures(captures: &Captures<'a>, offset: usize) -> Result<Self, Error>{
+    fn from_captures<'a>(captures: &Captures<'a, 't>, offset: usize) -> Result<Self, Error>{
         let res = captures.get(offset)
-            .ok_or_else(|| Error::DoesNotContainGroup(DoesNotContainGroup))?
-            .as_str();
+            .ok_or_else(|| Error::DoesNotContainGroup(DoesNotContainGroup))?;
         Ok(res)
     }
 
     #[inline]
-    fn parse<'b: 'a>(input: &'b str) -> Result<Self, Error>{
+    fn parse(input: &'t str) -> Result<Self, Error>{
         Ok(input)
     }
 }

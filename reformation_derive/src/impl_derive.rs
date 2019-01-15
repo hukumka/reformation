@@ -46,7 +46,7 @@ fn fn_parse_token_stream(input: &DeriveInput) -> TokenStream{
     let ident = input.ident();
     let ident_str = ident.to_string();
     quote! {
-        fn parse<'b: 'input>(string: &'b str) -> Result<Self, ::reformation::Error>{
+        fn parse(string: &'input str) -> Result<Self, ::reformation::Error>{
             // cannot use lazy_static, since it cannot access generic types
             // Mutating static mut is unsafe, but ok then used with `Once` sync primitive
             // see example at https://doc.rust-lang.org/std/sync/struct.Once.html
@@ -54,8 +54,8 @@ fn fn_parse_token_stream(input: &DeriveInput) -> TokenStream{
                 static mut RE: Option<::reformation::Regex> = None;
                 static ONCE: std::sync::Once = std::sync::Once::new();
                 ONCE.call_once(||{
-                    let re = Self::regex_str();
-                    let re = ::reformation::Regex::new(re)
+                    let re = format!(r"\A{}\z", Self::regex_str());
+                    let re = ::reformation::Regex::new(&re)
                         .unwrap_or_else(|x|{
                             // Panicking is allowed due to 'poisoning'
                             // docs reference: https://doc.rust-lang.org/std/sync/struct.Once.html#method.call_once
@@ -69,15 +69,18 @@ fn fn_parse_token_stream(input: &DeriveInput) -> TokenStream{
 
             let re = re.as_ref().unwrap_or_else(|| unreachable!());
 
-            // get captures for regular expression and delegete to from_captures method
-            let captures = re.captures(string).ok_or_else(||{
-                ::reformation::Error::NoRegexMatch(::reformation::NoRegexMatch{
-                    format: Self::regex_str(),
-                    request: string.to_string(),
-                })
-            })?;
-            // ignore capture group mathing entire expression
-            Self::from_captures(&captures, 1)
+            let mut loc = re.capture_locations();
+            if let Some(_) = re.captures_read(&mut loc, string){
+                let captures = ::reformation::Captures::new(&loc, string);
+                Self::from_captures(&captures, 1)
+            }else{
+                Err(
+                    ::reformation::Error::NoRegexMatch(::reformation::NoRegexMatch{
+                        format: Self::regex_str(),
+                        request: string.to_string(),
+                    })
+                )
+            }
         }
     }
 }
@@ -157,7 +160,7 @@ fn empty_struct_from_captures(input: &DeriveInput) -> TokenStream {
     let name = input.ident();
     quote! {
         #[inline]
-        fn from_captures(captures: &::reformation::Captures<'input>, offset: usize) -> Result<Self, ::reformation::Error>{
+        fn from_captures<'a>(captures: &::reformation::Captures<'a, 'input>, offset: usize) -> Result<Self, ::reformation::Error>{
             Ok(#name)
         }
     }
@@ -171,7 +174,7 @@ fn tuple_struct_from_captures(input: &DeriveInput, args: &ArgumentsPos) -> Token
     let args2 = args;
     quote! {
         #[inline]
-        fn from_captures(captures: &::reformation::Captures<'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
+        fn from_captures<'a>(captures: &::reformation::Captures<'a, 'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
             let res = #ident #ty_gen(
                 #({
                     let res = <#args as ::reformation::Reformation>::from_captures(captures, offset)?;
@@ -202,7 +205,7 @@ fn struct_from_captures(input: &DeriveInput, args: &ArgumentsNamed) -> TokenStre
     let (default_arg, default_type) = args.default_fields();
     let res = quote! {
         #[inline]
-        fn from_captures(captures: &::reformation::Captures<'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
+        fn from_captures<'a>(captures: &::reformation::Captures<'a, 'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
             let res = #ident #ty_gen{
                 #(
                     #arg_names: {
@@ -230,7 +233,7 @@ fn enum_from_captures(input: &DeriveInput, args: &ArgumentsCases) -> TokenStream
         .map(|x| enum_variant_from_captures(input, x));
     quote! {
         #[inline]
-        fn from_captures(captures: &::reformation::Captures<'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
+        fn from_captures<'a>(captures: &::reformation::Captures<'a, 'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
             #(#variants)*
 
             panic!("No mathing variants")

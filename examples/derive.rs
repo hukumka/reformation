@@ -34,7 +34,7 @@ struct Crab {
 }
 
 #[derive(Debug, Reformation)]
-#[reformation(r"(vec might be here: {})?")]
+#[reformation(r"hm( vec might be here: {})?")]
 struct Ovec(Option<Vec>);
 
 fn main() {
@@ -52,9 +52,9 @@ fn main() {
     let pirate_crab = Crab::parse(r"(\|)(x_^)(|/)").unwrap();
     println!("{:?}", pirate_crab);
 
-    let b = Ovec::parse("vec might be here: Vec{0, 0, 0}").unwrap();
+    let b = Ovec::parse("hm vec might be here: Vec{0, 0, 0}").unwrap();
     println!("{:?}", b);
 
-    let c = Ovec::parse("nope").unwrap();
+    let c = Ovec::parse("hm").unwrap();
     println!("{:?}", c);
 }
