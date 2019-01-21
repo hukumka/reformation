@@ -21,7 +21,10 @@ struct UserAgent2<'input>{ // 'input - special lifetime name corresponding to li
     bundler: Version<'input>,
     rubygems: Version<'input>,
     ruby: Version<'input>,
-    platform: Braced<'input>,
+
+    #[reformation(r"([^)]*)")]
+    platform: &'input str,
+
     command: &'input str,
     jruby: Option<Version<'input>>,
     truffleruby: Option<Version<'input>>,
@@ -30,56 +33,12 @@ struct UserAgent2<'input>{ // 'input - special lifetime name corresponding to li
     gemstash: Option<Version<'input>>,
 }
 
-struct Version<'a>(&'a str);
-struct Braced<'a>(&'a str);
-
-impl<'a> Reformation<'a> for Version<'a>{
-    #[inline]
-    fn regex_str() -> &'static str{
-        r"([0-9a-zA-Z.\-]+)"
-    }
-
-    #[inline]
-    fn captures_count() -> usize{
-        1
-    }
-
-    #[inline]
-    fn from_captures<'b>(captures: &Captures<'b, 'a>, offset: usize) -> Result<Self, reformation::Error>{
-        let s = captures.get(offset).unwrap();
-        Ok(Version(s))
-    }
-
-    fn parse(_: &'a str) -> Result<Self, reformation::Error>{
-        // never actually used
-        unimplemented!()
-    }
-}
-
-impl<'a> Reformation<'a> for Braced<'a>{
-    #[inline]
-    fn regex_str() -> &'static str{
-        r"([^)]*)"
-    }
-
-    #[inline]
-    fn captures_count() -> usize{
-        1
-    }
-
-    #[inline]
-    fn from_captures<'b>(captures: &Captures<'b, 'a>, offset: usize) -> Result<Self, reformation::Error>{
-        let s = captures.get(offset).unwrap();
-        Ok(Braced(s))
-    }
-
-    fn parse(_: &'a str) -> Result<Self, reformation::Error>{
-        // never actually used
-        unimplemented!()
-    }
-}
-
-
+#[derive(Reformation)]
+#[reformation("{}")]
+struct Version<'input>(
+    #[reformation(r"([0-9a-zA-Z.\-]+)")]
+    &'input str
+);
 
 // Original
 

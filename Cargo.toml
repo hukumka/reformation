@@ -12,14 +12,13 @@ travis-ci = { repository = "hukumka/reformation" }
 keywords = ["parsing", "regex"]
 categories = ["parsing"]
 
-debug = true
-
 [dependencies]
 # pub
 regex = "1"
 # private
 reformation_derive = {path="reformation_derive", version="0.3.1"}
 derive_more = "0.13.0"
+anymap = "0.12.1"
 
 [dev-dependencies]
 criterion = "0.2.7"

@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use crate::derive_input::{
-    Arguments, ArgumentsCases, ArgumentsNamed, ArgumentsPos, DeriveInput, EnumVariant,
+    Arguments, ArgumentsCases, ArgumentsNamed, ArgumentsPos, DeriveInput, EnumVariant, ReType
 };
 
 /// Generate ```TokenStream``` with implementation of ```Reformation``` and ```FromStr``` for `input`
@@ -160,7 +160,7 @@ fn empty_struct_from_captures(input: &DeriveInput) -> TokenStream {
     let name = input.ident();
     quote! {
         #[inline]
-        fn from_captures<'a>(captures: &::reformation::Captures<'a, 'input>, offset: usize) -> Result<Self, ::reformation::Error>{
+        fn from_captures<'_a>(captures: &::reformation::Captures<'_a, 'input>, offset: usize) -> Result<Self, ::reformation::Error>{
             Ok(#name)
         }
     }
@@ -174,7 +174,7 @@ fn tuple_struct_from_captures(input: &DeriveInput, args: &ArgumentsPos) -> Token
     let args2 = args;
     quote! {
         #[inline]
-        fn from_captures<'a>(captures: &::reformation::Captures<'a, 'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
+        fn from_captures<'_a>(captures: &::reformation::Captures<'_a, 'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
             let res = #ident #ty_gen(
                 #({
                     let res = <#args as ::reformation::Reformation>::from_captures(captures, offset)?;
@@ -205,7 +205,7 @@ fn struct_from_captures(input: &DeriveInput, args: &ArgumentsNamed) -> TokenStre
     let (default_arg, default_type) = args.default_fields();
     let res = quote! {
         #[inline]
-        fn from_captures<'a>(captures: &::reformation::Captures<'a, 'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
+        fn from_captures<'_a>(captures: &::reformation::Captures<'_a, 'input>, mut offset: usize) -> Result<Self, ::reformation::Error>{
             let res = #ident #ty_gen{
                 #(
                     #arg_names: {
@@ -295,17 +295,19 @@ impl GetRegexArguments for Arguments {
 impl GetRegexArguments for ArgumentsNamed {
     fn regex_arguments(&self) -> TokenStream {
         let (names, types) = self.split_names_types();
+        let types = types.iter().map(regex_for_type);
         quote! {
-            #(#names = <#types as ::reformation::Reformation>::regex_str()),*
+            #(#names = #types),*
         }
     }
 }
 
 impl GetRegexArguments for ArgumentsPos {
     fn regex_arguments(&self) -> TokenStream {
-        let types = (&self).into_iter();
+        let types = (&self).into_iter()
+            .map(regex_for_type);
         quote! {
-            #(<#types as ::reformation::Reformation>::regex_str()),*
+            #(#types),*
         }
     }
 }
@@ -323,10 +325,23 @@ impl GetRegexArguments for ArgumentsCases {
 
 impl GetRegexArguments for EnumVariant {
     fn regex_arguments(&self) -> TokenStream {
-        let types = self.fields();
+        let types = self.fields().iter().map(regex_for_type);
         let res = quote! {
-            #(<#types as ::reformation::Reformation>::regex_str(),)*
+            #(#types,)*
         };
         res
+    }
+}
+
+fn regex_for_type(ty: &ReType) -> TokenStream{
+    let override_ = ty.attr.as_ref().and_then(|a| a.regex_string.as_ref());
+    if let Some(s) = override_{
+        quote!{
+            #s
+        }
+    }else{
+        quote!{
+            <#ty as ::reformation::Reformation>::regex_str()
+        }
     }
 }

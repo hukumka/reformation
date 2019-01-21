@@ -1,9 +1,6 @@
 ### 0.4.0
-+ Add basic generic support.
-+ Replace usage of lazy_static with std::sync::Once. Prepare to remove it in 0.4
-    (Motivation: lazy_static cannot access generic types of function it placed in).
-+ Add examples for generics.
-+ Add examples for failing cases.
++ Change trait to support types containing references (such as &str)
++ Add benchmark to prove that it is zero-cost abstraction
 
 ### 0.3.1
 + Fix failing test

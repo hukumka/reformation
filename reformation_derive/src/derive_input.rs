@@ -6,7 +6,7 @@ use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use syn::spanned::Spanned;
 use syn::{
-    Attribute, Data, DataEnum, DataStruct, Fields, FieldsNamed, FieldsUnnamed, Generics, Ident,
+    Attribute, Data, DataEnum, DataStruct, Generics, Ident,
     Type, Variant,
 };
 
@@ -33,12 +33,12 @@ pub enum Arguments {
 /// Fields specification of struct
 pub struct ArgumentsNamed {
     fields: Vec<Ident>,
-    types: Vec<Type>,
-    defaults: HashMap<Ident, Type>,
+    types: Vec<ReType>,
+    defaults: HashMap<Ident, ReType>,
 }
 
 /// Fields specification of tuplestruct
-pub struct ArgumentsPos(Vec<Type>);
+pub struct ArgumentsPos(Vec<ReType>);
 
 /// Field specification of enums
 pub struct ArgumentsCases(Vec<EnumVariant>);
@@ -46,7 +46,18 @@ pub struct ArgumentsCases(Vec<EnumVariant>);
 /// Single variant of enum
 pub struct EnumVariant {
     ident: Ident,
-    types: Vec<Type>,
+    types: Vec<ReType>,
+}
+
+pub struct ReType{
+    pub ty: Type,
+    pub attr: Option<ReformationAttribute>,
+}
+
+impl quote::ToTokens for ReType{
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream){
+        self.ty.to_tokens(tokens);
+    }
 }
 
 // ------------------------------------
@@ -92,7 +103,7 @@ impl Arguments {
         }
     }
 
-    pub fn types(&self) -> Vec<&Type> {
+    pub fn types(&self) -> Vec<&ReType> {
         let res: Vec<_>;
         match self {
             Arguments::Cases(c) => {
@@ -115,11 +126,11 @@ impl ArgumentsNamed {
         self.fields.len()
     }
 
-    pub fn split_names_types(&self) -> (&[Ident], &[Type]) {
+    pub fn split_names_types(&self) -> (&[Ident], &[ReType]) {
         (&self.fields, &self.types)
     }
 
-    pub fn default_fields(&self) -> (Vec<&Ident>, Vec<&Type>) {
+    pub fn default_fields(&self) -> (Vec<&Ident>, Vec<&ReType>) {
         let (names, types): (Vec<_>, Vec<_>) = self.defaults.iter().unzip();
         (names, types)
     }
@@ -132,8 +143,8 @@ impl ArgumentsPos {
 }
 
 impl<'a> IntoIterator for &'a ArgumentsPos {
-    type Item = &'a Type;
-    type IntoIter = ::std::slice::Iter<'a, Type>;
+    type Item = &'a ReType;
+    type IntoIter = ::std::slice::Iter<'a, ReType>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
@@ -153,7 +164,7 @@ impl EnumVariant {
     pub fn ident(&self) -> &Ident {
         &self.ident
     }
-    pub fn fields(&self) -> &[Type] {
+    pub fn fields(&self) -> &[ReType] {
         self.types.as_slice()
     }
 }
@@ -168,21 +179,23 @@ impl DeriveInput {
 
         let final_regex_str;
         let arguments;
+        let attributes;
 
         let data = input.data;
         let attrs = input.attrs;
-        let attributes;
         match data {
             Data::Struct(struct_) => {
+                let args = StructArguments::parse(&struct_)?;
                 let format = StructFormat::parse(span, attrs)?;
-                arguments = Arguments::parse_struct(struct_, &format)?;
-                final_regex_str = format.build_string()?;
+                arguments = args.to_arguments(&format)?;
+                final_regex_str = format.build_regex()?;
                 attributes = format.attributes;
             }
             Data::Enum(enum_) => {
+                let args = ArgumentsCases::parse(&enum_)?;
                 let format = EnumFormat::parse(span, attrs)?;
-                arguments = Arguments::parse_enum(&enum_, &format)?;
-                final_regex_str = format.build_string()?;
+                final_regex_str = args.build_regex(&format)?;
+                arguments = Arguments::Cases(args);
                 attributes = format.attributes;
             }
             Data::Union(_) => {
@@ -197,6 +210,80 @@ impl DeriveInput {
         };
         res.apply_where(attributes);
         Ok(res)
+    }
+}
+
+struct StructArguments{
+    names: Option<Vec<Ident>>,
+    types: Vec<ReType>,
+}
+
+impl StructArguments{
+    fn parse(struct_: &DataStruct) -> syn::Result<Self>{
+        let names: Option<Vec<_>> = struct_.fields.iter()
+            .map(|f| f.ident.clone())
+            .collect();
+        let types: syn::Result<Vec<_>> = struct_.fields.iter()
+            .map(|f| ReType::new(&f.ty, &f.attrs))
+            .collect();
+        Ok(Self{
+            names,
+            types: types?
+        })
+    }
+
+    fn to_arguments(self, format: &StructFormat) -> syn::Result<Arguments>{
+        if self.names.is_some(){
+            self.to_input_named(format)
+        }else{
+            self.to_input_pos(format)
+        }
+    }
+
+    fn to_input_pos(self, format: &StructFormat) -> syn::Result<Arguments>{
+        if !format.format.named_arguments().is_empty(){
+            return Err(errors::unnamed_struct_named_argumens(format.span));
+        }
+        let real = format.format.positional_arguments();
+        let expected = self.types.len();
+        if expected != real{
+            return Err(errors::unnamed_struct_wrong_argument_count(format.span, real, expected));
+        }
+
+        Ok(Arguments::Pos(ArgumentsPos(self.types)))
+    }
+
+    fn to_input_named(self, format: &StructFormat) -> syn::Result<Arguments>{
+        let names = self.names.unwrap();
+        if format.format.positional_arguments() != 0{
+            return Err(errors::named_struct_unnamed_arguments(format.span));
+        }
+        let format_names = format.format.named_arguments();
+        // check if every name mention in format string is a field
+        let nameset: HashSet<_> = names.iter().map(|x| x.to_string()).collect();
+        for name in &format_names{
+            if !nameset.contains(name){
+                return Err(errors::named_struct_argument_with_no_field(format.span, name));
+            }
+        }
+        // split into default and parsed fields
+        let mut fields = vec![];
+        let mut types = vec![];
+        let mut defaults = HashMap::new();
+        for (name, ty) in names.into_iter().zip(self.types){
+            if format_names.contains(&name.to_string()){
+                fields.push(name);
+                types.push(ty);
+            }else{
+                defaults.insert(name, ty);
+            }
+        }
+        let args = ArgumentsNamed{
+            fields,
+            types,
+            defaults
+        };
+        Ok(Arguments::Named(args))
     }
 }
 
@@ -216,7 +303,7 @@ impl StructFormat {
         Ok(Self { span, format, attributes: attr })
     }
 
-    fn build_string(&self) -> syn::Result<String> {
+    fn build_regex(&self) -> syn::Result<String> {
         test_format_regex(self.span, &self.format)?;
         Ok(self.format.to_string())
     }
@@ -245,33 +332,23 @@ struct EnumFormat {
 impl EnumFormat {
     fn parse(span: Span, attrs: Vec<Attribute>) -> syn::Result<Self> {
         let attr = ReformationAttribute::parse(span, attrs)?;
-        let variants = Self::split_by_pipe(&attr)?;
+        let variants;
+        if attr.regex_string.is_some(){
+            variants = Self::split_by_pipe(&attr)?;
+        }else{
+            variants = vec![];
+        }
         let format: syn::Result<Vec<_>> = variants
             .into_iter()
             .map(|s| {
                 let format = Format::build(s).map_err(|e| errors::format_error(span, e))?;
                 let format = apply_modes(format, &attr);
+                test_format_regex(span, &format)?;
                 Ok(format)
             })
             .collect();
         let format = format?;
         Ok(Self { span, format, attributes: attr })
-    }
-
-    fn build_string(&self) -> syn::Result<String> {
-        let mut res = String::new();
-        res.push_str("(?:");
-        for (i, f) in self.format.iter().enumerate() {
-            test_format_regex(self.span, f)?;
-            if i != 0 {
-                res.push_str("|");
-            }
-            res.push_str("(");
-            res.push_str(&f.to_string());
-            res.push_str(")");
-        }
-        res.push_str(")");
-        Ok(res)
     }
 
     // regular split cannot be used, because it will break at following cases:
@@ -358,135 +435,72 @@ fn slack(input: &str) -> String {
     RE.replace_all(input, r"$1\s*").to_string()
 }
 
-impl Arguments {
-    fn parse_struct(struct_: DataStruct, format: &StructFormat) -> syn::Result<Self> {
-        match struct_.fields {
-            Fields::Named(fields) => {
-                let args = ArgumentsNamed::parse(fields, format)?;
-                Ok(Arguments::Named(args))
-            }
-            Fields::Unnamed(fields) => {
-                let args = ArgumentsPos::parse(fields, format)?;
-                Ok(Arguments::Pos(args))
-            }
-            Fields::Unit => {
-                if !format.format.no_arguments() {
-                    return Err(errors::empty_struct_with_arguments(
-                        format.span,
-                        &format.format,
-                    ));
-                }
-                Ok(Arguments::Empty)
-            }
-        }
-    }
-
-    fn parse_enum(enum_: &DataEnum, format: &EnumFormat) -> syn::Result<Self> {
-        ArgumentsCases::parse(enum_, format).map(Arguments::Cases)
-    }
-}
 
 impl ArgumentsCases {
-    fn parse(enum_: &DataEnum, format: &EnumFormat) -> syn::Result<Self> {
-        let enum_variant_count = enum_.variants.len();
-        let format_variant_count = format.format.len();
-        if enum_variant_count != format_variant_count {
-            return Err(errors::enum_wrong_number_of_variants_covered(
-                format.span,
-                format_variant_count,
-                enum_variant_count,
-            ));
-        }
+    fn parse(enum_: &DataEnum) -> syn::Result<Self> {
         let res: syn::Result<Vec<_>> = enum_
             .variants
             .iter()
-            .zip(&format.format)
-            .map(|(v, f)| EnumVariant::parse(format.span, v, f))
+            .map(EnumVariant::parse)
             .collect();
         let res = res?;
         Ok(ArgumentsCases(res))
     }
+
+    fn build_regex(&self, format: &EnumFormat) -> syn::Result<String>{
+        if format.format.is_empty(){
+            return self.build_regex_new(format);
+        }
+        let real = format.format.len();
+        let expected = self.variants().len();
+        if real != expected{
+            return Err(errors::enum_wrong_number_of_variants_covered(format.span, real, expected));
+        }
+        let mut result = String::new();
+        for (v, f) in self.variants().iter().zip(&format.format){
+            result.push_str("(");
+            if !f.named_arguments().is_empty(){
+                return Err(errors::enum_named_argumens(format.span));
+            }
+            let real = f.positional_arguments();
+            let expected = v.types.len();
+            if real != expected{
+                return Err(errors::enum_variant_wrong_number_of_values(format.span, &v.ident, real, expected));
+            }
+            result.push_str(&f.to_string());
+            result.push_str(")|");
+        }
+        // we have "|" one the end. Lets get rid of it
+        result.pop();
+
+        Ok(result)
+    }
+
+    fn build_regex_new(&self, format: &EnumFormat) -> syn::Result<String>{
+        unimplemented!();
+    }
 }
 
 impl EnumVariant {
-    fn parse(span: Span, variant: &Variant, format: &Format) -> syn::Result<Self> {
-        let fields: Vec<_> = variant.fields.iter().map(|x| x.clone().ty).collect();
-        let expected = fields.len();
-        let real = format.positional_arguments();
-        if expected != real {
-            return Err(errors::enum_variant_wrong_number_of_values(
-                span,
-                &variant.ident,
-                real,
-                expected,
-            ));
-        }
-        if !format.named_arguments().is_empty() {
-            return Err(errors::enum_named_argumens(span));
-        }
+    fn parse(variant: &Variant) -> syn::Result<Self> {
+        let fields: syn::Result<Vec<_>> = variant.fields
+            .iter()
+            .map(|x| ReType::new(&x.ty, &x.attrs))
+            .collect();
         Ok(Self {
             ident: variant.ident.clone(),
-            types: fields,
+            types: fields?,
         })
     }
 }
 
-impl ArgumentsNamed {
-    fn parse(struct_: FieldsNamed, format: &StructFormat) -> syn::Result<Self> {
-        if format.format.positional_arguments() > 0 {
-            return Err(errors::named_struct_unnamed_arguments(format.span));
-        }
-        let args = format.format.named_arguments();
-        let mut fields = vec![];
-        let mut types = vec![];
-        let mut defaults = HashMap::new();
-        let mut fields_set = HashSet::new();
 
-        for field in struct_.named {
-            let ident = field.ident.unwrap();
-            let type_ = field.ty;
-            let name = ident.to_string();
-            if args.contains(&name) {
-                fields.push(ident);
-                types.push(type_);
-                fields_set.insert(name);
-            } else {
-                defaults.insert(ident, type_);
-            }
-        }
-
-        for name in &args {
-            if !fields_set.contains(name) {
-                return Err(errors::named_struct_argument_with_no_field(
-                    format.span,
-                    name,
-                ));
-            }
-        }
-
-        Ok(Self {
-            fields,
-            types,
-            defaults,
+impl ReType{
+    fn new(ty: &Type, attrs: &[Attribute]) -> syn::Result<Self>{
+        let attr = ReformationAttribute::parse(Span::call_site(), attrs.to_vec()).ok();
+        Ok(Self{
+            ty: ty.clone(),
+            attr,
         })
-    }
-}
-
-impl ArgumentsPos {
-    fn parse(struct_: FieldsUnnamed, format: &StructFormat) -> syn::Result<Self> {
-        let fields: Vec<_> = struct_.unnamed.into_iter().map(|x| x.ty).collect();
-        let real = fields.len();
-        let expected = format.format.positional_arguments();
-        if !format.format.named_arguments().is_empty() {
-            return Err(errors::unnamed_struct_named_argumens(format.span));
-        }
-        if real != expected {
-            return Err(errors::unnamed_struct_wrong_argument_count(
-                format.span,
-                real,
-                expected,
-            ));
-        }
-        Ok(ArgumentsPos(fields))
     }
 }

@@ -196,47 +196,7 @@ extern crate derive_more;
 pub use reformation_derive::*;
 pub use regex::{CaptureLocations, Regex, Error as RegexError};
 
-
-#[derive(Copy, Clone)]
-pub struct Captures<'a, 't>{
-    captures: &'a CaptureLocations,
-    input: &'t str
-}
-
-impl<'a, 't> Captures<'a, 't>{
-    #[inline]
-    pub fn new(captures: &'a CaptureLocations, input: &'t str) -> Self{
-        Self{
-            captures,
-            input
-        }
-    }
-
-    #[inline]
-    pub fn get(&self, id: usize) -> Option<&'t str>{
-        self.captures.get(id).map(|(a, b)| &self.input[a..b])
-    }
-}
-
-#[derive(Debug, Display)]
-pub enum Error{
-    NoRegexMatch(NoRegexMatch),
-    DoesNotContainGroup(DoesNotContainGroup),
-    #[display(fmt = "{:?}", "_0")]
-    Other(String),
-}
-
-#[derive(Debug, Display)]
-pub struct DoesNotContainGroup;
-
-#[derive(Debug, Display)]
-#[display(fmt = "No regex match: regex {:?} does not match  string {:?}", format, request)]
-pub struct NoRegexMatch {
-    pub format: &'static str,
-    pub request: String,
-}
-
-pub trait Reformation<'t>: Sized {
+pub trait Reformation<'t>: Sized{
     /// regular expression for matching this struct
     fn regex_str() -> &'static str;
 
@@ -251,8 +211,11 @@ pub trait Reformation<'t>: Sized {
     fn from_captures<'a>(c: &Captures<'a, 't>, offset: usize) -> Result<Self, Error>;
 
     /// parse struct from str
-    // cannot use lazy_static and such because of
-    // https://stackoverflow.com/questions/45892973/is-it-possible-for-different-instances-of-a-generic-function-to-have-different-s
+    ///
+    /// default implementation is not zero-cost abstraction, which must be kept in mind
+    /// when implementing trait by hand. (This version uses generic_static to handle
+    /// lazy initialization, which imply some extra costs, but for non-generic types it can be implemented with
+    /// lazy_static!)
     fn parse(input: &'t str) -> Result<Self, Error>;
 }
 
@@ -291,6 +254,46 @@ macro_rules! group_impl_parse_primitive{
     };
 }
 
+#[derive(Copy, Clone)]
+/// Wrapper to get captures of regular expression
+pub struct Captures<'a, 't>{
+    captures: &'a CaptureLocations,
+    input: &'t str
+}
+
+impl<'a, 't> Captures<'a, 't>{
+    #[inline]
+    pub fn new(captures: &'a CaptureLocations, input: &'t str) -> Self{
+        Self{
+            captures,
+            input
+        }
+    }
+
+    #[inline]
+    /// Get string corresponding to `id` capture group
+    pub fn get(&self, id: usize) -> Option<&'t str>{
+        self.captures.get(id).map(|(a, b)| &self.input[a..b])
+    }
+}
+
+#[derive(Debug, Display, Eq, PartialEq)]
+pub enum Error{
+    NoRegexMatch(NoRegexMatch),
+    DoesNotContainGroup(DoesNotContainGroup),
+    #[display(fmt = "{:?}", "_0")]
+    Other(String),
+}
+
+#[derive(Debug, Display, Eq, PartialEq)]
+pub struct DoesNotContainGroup;
+
+#[derive(Debug, Display, Eq, PartialEq)]
+#[display(fmt = "No regex match: regex {:?} does not match  string {:?}", format, request)]
+pub struct NoRegexMatch {
+    pub format: &'static str,
+    pub request: String,
+}
 group_impl_parse_primitive! {r"(\d+)", u8, u16, u32, u64, u128, usize}
 group_impl_parse_primitive! {r"([\+-]?\d+)", i8, i16, i32, i64, i128, isize}
 group_impl_parse_primitive! {r"((?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?)", f32, f64}
