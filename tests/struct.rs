@@ -51,3 +51,32 @@ fn test_rect(){
     };
     assert_eq!(real, Ok(expected));
 }
+
+#[derive(Reformation, PartialEq, Debug)]
+#[reformation("{b}, {a}")]
+struct Order{
+    a: i32,
+    b: i32,
+}
+
+#[test]
+fn test_order(){
+    let real = Order::parse("1, 3");
+    let expected = Order{
+        a: 3,
+        b: 1,
+    };
+    assert_eq!(real, Ok(expected));
+}
+
+#[derive(Reformation, PartialEq, Debug)]
+#[reformation("unit")]
+struct Unit;
+
+#[test]
+fn test_unit(){
+    let u = Unit::parse("unit");
+    assert_eq!(u, Ok(Unit));
+    let u = Unit::parse("u");
+    assert!(u.is_err());
+}

@@ -15,6 +15,7 @@ mod errors {
 }
 
 /// DeriveInput parsed into easily manipulated view
+#[derive(Debug)]
 pub struct DeriveInput {
     ident: Ident,
     generics: Generics,
@@ -23,6 +24,7 @@ pub struct DeriveInput {
 }
 
 /// Fields specification of derive input
+#[derive(Debug)]
 pub enum Arguments {
     Named(ArgumentsNamed),
     Pos(ArgumentsPos),
@@ -31,6 +33,7 @@ pub enum Arguments {
 }
 
 /// Fields specification of struct
+#[derive(Debug)]
 pub struct ArgumentsNamed {
     fields: Vec<Ident>,
     types: Vec<ReType>,
@@ -38,17 +41,21 @@ pub struct ArgumentsNamed {
 }
 
 /// Fields specification of tuplestruct
+#[derive(Debug)]
 pub struct ArgumentsPos(Vec<ReType>);
 
 /// Field specification of enums
+#[derive(Debug)]
 pub struct ArgumentsCases(Vec<EnumVariant>);
 
 /// Single variant of enum
+#[derive(Debug)]
 pub struct EnumVariant {
     ident: Ident,
     types: Vec<ReType>,
 }
 
+#[derive(Debug, Clone)]
 pub struct ReType{
     pub ty: Type,
     pub attr: Option<ReformationAttribute>,
@@ -259,25 +266,26 @@ impl StructArguments{
             return Err(errors::named_struct_unnamed_arguments(format.span));
         }
         let format_names = format.format.named_arguments();
-        // check if every name mention in format string is a field
-        let nameset: HashSet<_> = names.iter().map(|x| x.to_string()).collect();
-        for name in &format_names{
-            if !nameset.contains(name){
-                return Err(errors::named_struct_argument_with_no_field(format.span, name));
-            }
-        }
-        // split into default and parsed fields
+        let mut nameset: HashMap<_, _> = names.iter()
+            .zip(&self.types)
+            .map(|(i, t)| (i.to_string(), (i.clone(), t.clone())))
+            .collect();
+
         let mut fields = vec![];
         let mut types = vec![];
-        let mut defaults = HashMap::new();
-        for (name, ty) in names.into_iter().zip(self.types){
-            if format_names.contains(&name.to_string()){
-                fields.push(name);
-                types.push(ty);
+        for name in format_names{
+            if let Some((i, t)) = nameset.remove(&name){
+                fields.push(i);
+                types.push(t);
             }else{
-                defaults.insert(name, ty);
+                return Err(errors::named_struct_argument_with_no_field(format.span, &name));
             }
         }
+
+        let defaults: HashMap<_, _> = nameset.into_iter()
+            .map(|(_, x)| x)
+            .collect();
+
         let args = ArgumentsNamed{
             fields,
             types,

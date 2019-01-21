@@ -66,8 +66,8 @@ impl Format {
         }
     }
 
-    pub fn named_arguments(&self) -> HashSet<String> {
-        let set: HashSet<_> = self
+    pub fn named_arguments(&self) -> Vec<String> {
+        let set: Vec<_> = self
             .arguments
             .iter()
             .filter_map(|a| match a {

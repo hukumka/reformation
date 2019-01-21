@@ -70,6 +70,7 @@ struct UserAgent1<'input>{ // 'input - special lifetime name corresponding to li
 struct UserAgent2<'input>{
     rubygems: Version<'input>,
     ruby: Version<'input>,
+    #[reformation("(.*)")]
     platform: &'input str,
     gemstash: Option<Version<'input>>,
 }
@@ -220,6 +221,7 @@ fn kirby_parse(inputs: &Vec<&str>){
 }
 
 fn compare(c: &mut Criterion){
+    test_parse();
     let inputs = vec![
         "bundler/1.16.1 rubygems/2.6.11 ruby/2.4.1 (x86_64-pc-linux-gnu) command/install options/no_install,mirror.https://rubygems.org/,mirror.https://rubygems.org/.fallback_timeout/,path 59dbf8e99fa09c0a",
         "bundler/1.12.5 rubygems/2.6.10 ruby/2.3.1 (x86_64-pc-linux-gnu) command/install options/orig_path 95ac718b0e500f41",
@@ -241,7 +243,6 @@ criterion_group!(benches, compare);
 criterion_main!(benches);
 
 
-#[test]
 fn test_parse() {
     assert_eq!(
         parse_re("bundler/1.12.5 rubygems/2.6.10 ruby/2.3.1 (x86_64-pc-linux-gnu) command/install options/orig_path 95ac718b0e500f41"),
