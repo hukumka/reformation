@@ -11,18 +11,50 @@ use regex::Regex;
 use lazy_static::lazy_static;
 
 
+fn parse_re(s: &str) -> Option<UserAgent>{
+    if let Ok(u) = UserAgent1::parse(s){
+        Some(UserAgent{
+            bundler: Some(u.bundler.0),
+            rubygems: u.rubygems.0,
+            ruby: Some(u.ruby.0),
+            platform: Some(u.platform),
+            command: Some(u.command),
+            jruby: u.jruby.map(|x| x.0),
+            truffleruby: u.truffleruby.map(|x| x.0),
+            options: u.options,
+            ci: u.ci,
+            gemstash: u.gemstash.map(|x| x.0)
+        })
+    }else if let Ok(u) = UserAgent2::parse(s){
+        Some(UserAgent{
+            rubygems: u.rubygems.0,
+            ruby: Some(u.ruby.0),
+            platform: Some(u.platform),
+            gemstash: u.gemstash.map(|x| x.0),
+            ..Default::default()
+        })
+    }else if let Ok(u) = UserAgent3::parse(s){
+        Some(UserAgent {
+            rubygems: u.rubygems.0,
+            ..Default::default()
+        })
+    }else{
+        None
+    }
+}
+
 #[derive(Reformation)]
 #[reformation("\
     bundler/{bundler} rubygems/{rubygems} ruby/{ruby} \\({platform}\\) command/{command}\
     ( jruby/{jruby})?( truffleruby/{truffleruby})?( options/{options})?( ci/{ci})? \
     [a-f0-9]{{16}}( Gemstash/{gemstash})?\
 ")]
-struct UserAgent2<'input>{ // 'input - special lifetime name corresponding to lifetime of input string
+struct UserAgent1<'input>{ // 'input - special lifetime name corresponding to lifetime of input string
     bundler: Version<'input>,
     rubygems: Version<'input>,
     ruby: Version<'input>,
 
-    #[reformation(r"([^)]*)")]
+    #[reformation(r"([^)]*)")] // use regex ([^)]*) to parse platform field instead of standard one.
     platform: &'input str,
 
     command: &'input str,
@@ -34,6 +66,23 @@ struct UserAgent2<'input>{ // 'input - special lifetime name corresponding to li
 }
 
 #[derive(Reformation)]
+#[reformation(r"(Ruby, )?RubyGems/{rubygems} {platform} Ruby/{ruby} \(.*?\)( jruby| truffleruby| rbx)?( Gemstash/{gemstash})?")]
+struct UserAgent2<'input>{
+    rubygems: Version<'input>,
+    ruby: Version<'input>,
+    platform: &'input str,
+    gemstash: Option<Version<'input>>,
+}
+
+#[derive(Reformation)]
+#[reformation(r"Ruby, Gems {rubygems}")]
+struct UserAgent3<'input>{
+    rubygems: Version<'input>,
+}
+
+// Instead of repeating such regex as attribute for each field, I decided to
+// specify it via type
+#[derive(Reformation)]
 #[reformation("{}")]
 struct Version<'input>(
     #[reformation(r"([0-9a-zA-Z.\-]+)")]
@@ -42,7 +91,7 @@ struct Version<'input>(
 
 // Original
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Default)]
 pub struct UserAgent<'a> {
     pub bundler: Option<&'a str>,
     pub rubygems: &'a str,
@@ -160,7 +209,7 @@ pub fn parse(a: &str) -> Option<UserAgent> {
 
 fn reformation_parse(inputs: &Vec<&str>){
     for i in inputs{
-        let r = UserAgent2::parse(i).unwrap();
+        let r = parse_re(*i).unwrap();
     }
 }
 
@@ -173,6 +222,15 @@ fn kirby_parse(inputs: &Vec<&str>){
 fn compare(c: &mut Criterion){
     let inputs = vec![
         "bundler/1.16.1 rubygems/2.6.11 ruby/2.4.1 (x86_64-pc-linux-gnu) command/install options/no_install,mirror.https://rubygems.org/,mirror.https://rubygems.org/.fallback_timeout/,path 59dbf8e99fa09c0a",
+        "bundler/1.12.5 rubygems/2.6.10 ruby/2.3.1 (x86_64-pc-linux-gnu) command/install options/orig_path 95ac718b0e500f41",
+        "bundler/1.16.1 rubygems/2.7.6 ruby/2.5.1 (x86_64-pc-linux-gnu) command/install rbx/3.105 options/no_install,git.allow_insecure,build.nokogiri,jobs,path,app_config,silence_root_warning,bin,gemfile e710485d04febb1e",
+        "bundler/1.12.5 rubygems/2.6.10 ruby/2.3.1 (x86_64-pc-linux-gnu) command/install options/orig_path 95ac718b0e500f41",
+        "bundler/1.15.4 rubygems/2.6.14 ruby/2.4.2 (x86_64-w64-mingw32) command/install options/ 6e8fa23dbf26d4ff Gemstash/1.1.0",
+        "bundler/1.16.2 rubygems/2.7.6 ruby/2.5.0 (x86_64-Oracle Corporation-linux) command/install jruby/9.2.1.0-SNAPSHOT options/no_install,retry,jobs,gemfile ci/travis,ci fe5e45257d515f1f",
+        "bundler/1.5.1 rubygems/2.2.0 ruby/2.1.0 (x86_64-unknown-linux-gnu) command/install fe5e45257d515f1f",
+        "Ruby, Gems 1.1.1",
+        "Ruby, RubyGems/1.3.7 x86_64-linux Ruby/1.9.2 (2010-08-18 patchlevel 0)",
+        "Ruby, RubyGems/2.6.6 x86_64-linux Ruby/2.3.1 (2018-01-06 patchlevel 0) rbx",
     ];
     let re = Fun::new("Reformation", |b, i| b.iter(|| reformation_parse(i)));
     let kr = Fun::new("Kirby", |b, i| b.iter(|| kirby_parse(i)));
@@ -181,3 +239,55 @@ fn compare(c: &mut Criterion){
 
 criterion_group!(benches, compare);
 criterion_main!(benches);
+
+
+#[test]
+fn test_parse() {
+    assert_eq!(
+        parse_re("bundler/1.12.5 rubygems/2.6.10 ruby/2.3.1 (x86_64-pc-linux-gnu) command/install options/orig_path 95ac718b0e500f41"),
+        Some(UserAgent {
+            bundler: Some("1.12.5"),
+            rubygems: "2.6.10",
+            ruby: Some("2.3.1"),
+            platform: Some("x86_64-pc-linux-gnu"),
+            command: Some("install"),
+            options: Some("orig_path"),
+            jruby: None,
+            truffleruby: None,
+            ci: None,
+            gemstash: None,
+        })
+    );
+
+    assert_eq!(
+        parse_re("Ruby, RubyGems/2.4.8 x86_64-linux Ruby/2.1.6 (2015-04-13 patchlevel 336)"),
+        Some(UserAgent {
+            bundler: None,
+            rubygems: "2.4.8",
+            ruby: Some("2.1.6"),
+            platform: Some("x86_64-linux"),
+            command: None,
+            options: None,
+            jruby: None,
+            truffleruby: None,
+            ci: None,
+            gemstash: None,
+        })
+    );
+
+    assert_eq!(
+        parse_re("Ruby, Gems 1.1.1"),
+        Some(UserAgent {
+            bundler: None,
+            rubygems: "1.1.1",
+            ruby: None,
+            platform: None,
+            command: None,
+            options: None,
+            jruby: None,
+            truffleruby: None,
+            ci: None,
+            gemstash: None,
+        })
+    );
+}
