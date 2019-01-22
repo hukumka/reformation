@@ -2,11 +2,6 @@ use crate::format::{Format, FormatError};
 use proc_macro2::Span;
 use syn::{Error, Expr, Ident};
 
-pub fn no_reformation_attribute(span: Span) -> Error {
-    let msg = "Expected attribute `#[reformation(r\"...\")], containing format string.";
-    Error::new(span, msg)
-}
-
 pub fn no_format_string_in_attribute(span: Span) -> Error {
     let msg = "Attribute `#[reformation(...)]` must containt format string as first item.";
     Error::new(span, msg)
@@ -123,5 +118,10 @@ pub fn enum_named_argumens(span: Span) -> Error {
 
 pub fn unions_are_not_supported(span: Span) -> Error {
     let msg = "Unions are not supported.";
+    Error::new(span, msg)
+}
+
+pub fn enum_variant_not_covered(span: Span) -> Error{
+    let msg = "Variant has no regex specified.";
     Error::new(span, msg)
 }

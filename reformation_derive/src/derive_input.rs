@@ -3,11 +3,11 @@ use crate::reformation_attribute::ReformationAttribute;
 use lazy_static::lazy_static;
 use proc_macro2::Span;
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use syn::spanned::Spanned;
 use syn::{
     Attribute, Data, DataEnum, DataStruct, Generics, Ident,
-    Type, Variant,
+    Type, Variant, Fields,
 };
 
 mod errors {
@@ -21,6 +21,7 @@ pub struct DeriveInput {
     generics: Generics,
     arguments: Arguments,
     final_regex_str: String,
+    attributes: ReformationAttribute,
 }
 
 /// Fields specification of derive input
@@ -53,12 +54,13 @@ pub struct ArgumentsCases(Vec<EnumVariant>);
 pub struct EnumVariant {
     ident: Ident,
     types: Vec<ReType>,
+    attribute: ReformationAttribute,
 }
 
 #[derive(Debug, Clone)]
 pub struct ReType{
     pub ty: Type,
-    pub attr: Option<ReformationAttribute>,
+    pub attr: ReformationAttribute,
 }
 
 impl quote::ToTokens for ReType{
@@ -85,8 +87,12 @@ impl DeriveInput {
         &self.final_regex_str
     }
 
-    fn apply_where(&mut self, attributes: ReformationAttribute){
-        if let Some(clause) = attributes.override_where{
+    pub fn use_tls_for_parse(&self) -> bool{
+        self.attributes.alloc_per_thread
+    }
+
+    fn apply_where(&mut self){
+        if let Some(clause) = self.attributes.override_where.take(){
             self.generics.where_clause = clause;
         }else{
             for p in self.generics.type_params_mut(){
@@ -214,8 +220,9 @@ impl DeriveInput {
             generics,
             arguments,
             final_regex_str,
+            attributes: attributes,
         };
-        res.apply_where(attributes);
+        res.apply_where();
         Ok(res)
     }
 }
@@ -223,6 +230,7 @@ impl DeriveInput {
 struct StructArguments{
     names: Option<Vec<Ident>>,
     types: Vec<ReType>,
+    is_unit: bool,
 }
 
 impl StructArguments{
@@ -233,18 +241,35 @@ impl StructArguments{
         let types: syn::Result<Vec<_>> = struct_.fields.iter()
             .map(|f| ReType::new(&f.ty, &f.attrs))
             .collect();
+
+        let is_unit = if let Fields::Unit = struct_.fields{
+            true
+        }else{
+            false
+        };
+
         Ok(Self{
             names,
-            types: types?
+            types: types?,
+            is_unit,
         })
     }
 
     fn to_arguments(self, format: &StructFormat) -> syn::Result<Arguments>{
-        if self.names.is_some(){
+        if self.is_unit{
+            self.to_unit(format)
+        }else if self.names.is_some(){
             self.to_input_named(format)
         }else{
             self.to_input_pos(format)
         }
+    }
+
+    fn to_unit(self, format: &StructFormat) -> syn::Result<Arguments>{
+        if !format.format.no_arguments(){
+            return Err(errors::empty_struct_with_arguments(format.span, &format.format));
+        }
+        Ok(Arguments::Empty)
     }
 
     fn to_input_pos(self, format: &StructFormat) -> syn::Result<Arguments>{
@@ -485,12 +510,35 @@ impl ArgumentsCases {
     }
 
     fn build_regex_new(&self, format: &EnumFormat) -> syn::Result<String>{
-        unimplemented!();
+        let mut result = String::new();
+        for v in self.variants(){
+            result.push_str("(");
+            let f = v.attribute.regex_string.as_ref()
+                .ok_or_else(|| errors::enum_variant_not_covered(v.ident.span()))?;
+            let f = Format::build(f)
+                .map_err(|e| errors::format_error(v.ident.span(), e))?;
+
+            if !f.named_arguments().is_empty(){
+                return Err(errors::enum_named_argumens(format.span));
+            }
+            let real = f.positional_arguments();
+            let expected = v.types.len();
+            if real != expected{
+                return Err(errors::enum_variant_wrong_number_of_values(format.span, &v.ident, real, expected));
+            }
+            result.push_str(&f.to_string());
+            result.push_str(")|");
+        }
+        // we have "|" one the end. Lets get rid of it
+        result.pop();
+
+        Ok(result)
     }
 }
 
 impl EnumVariant {
     fn parse(variant: &Variant) -> syn::Result<Self> {
+        let attribute = ReformationAttribute::parse(variant.ident.span(), variant.attrs.clone())?;
         let fields: syn::Result<Vec<_>> = variant.fields
             .iter()
             .map(|x| ReType::new(&x.ty, &x.attrs))
@@ -498,6 +546,7 @@ impl EnumVariant {
         Ok(Self {
             ident: variant.ident.clone(),
             types: fields?,
+            attribute,
         })
     }
 }
@@ -505,7 +554,7 @@ impl EnumVariant {
 
 impl ReType{
     fn new(ty: &Type, attrs: &[Attribute]) -> syn::Result<Self>{
-        let attr = ReformationAttribute::parse(Span::call_site(), attrs.to_vec()).ok();
+        let attr = ReformationAttribute::parse(Span::call_site(), attrs.to_vec())?;
         Ok(Self{
             ty: ty.clone(),
             attr,

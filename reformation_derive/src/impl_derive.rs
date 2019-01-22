@@ -43,34 +43,69 @@ fn impl_reformation(input: &DeriveInput) -> TokenStream {
 }
 
 fn fn_parse_token_stream(input: &DeriveInput) -> TokenStream{
+    if input.use_tls_for_parse(){
+        fn_parse_token_stream_tls(input)
+    }else{
+        fn_parse_token_stream_regular(input)
+    }
+}
+
+fn fn_parse_token_stream_tls(input: &DeriveInput) -> TokenStream{
     let ident = input.ident();
+    let ident2 = ident;
     let ident_str = ident.to_string();
     quote! {
         fn parse(string: &'input str) -> Result<Self, ::reformation::Error>{
-            // cannot use lazy_static, since it cannot access generic types
-            // Mutating static mut is unsafe, but ok then used with `Once` sync primitive
-            // see example at https://doc.rust-lang.org/std/sync/struct.Once.html
-            let re = unsafe{
-                static mut RE: Option<::reformation::Regex> = None;
-                static ONCE: std::sync::Once = std::sync::Once::new();
-                ONCE.call_once(||{
-                    let re = format!(r"\A{}\z", Self::regex_str());
-                    let re = ::reformation::Regex::new(&re)
-                        .unwrap_or_else(|x|{
-                            // Panicking is allowed due to 'poisoning'
-                            // docs reference: https://doc.rust-lang.org/std/sync/struct.Once.html#method.call_once
-                            // poisoning explanation: https://doc.rust-lang.org/std/sync/struct.Mutex.html#poisoning
-                            panic!("Cannot compile regex for {}: {}", #ident_str, x)
-                        });
-                    RE = Some(re);
-                });
-                &RE
-            };
+            ::reformation::lazy_static!{
+                static ref RE: ::reformation::Regex = {
+                    let s = format!(r"\A{}\z", <#ident2 as ::reformation::Reformation>::regex_str());
+                    ::reformation::Regex::new(&s)
+                        .unwrap_or_else(|e| panic!("Cannot compile regex for {}: {}", #ident_str, e))
+                };
+            }
 
-            let re = re.as_ref().unwrap_or_else(|| unreachable!());
+            use std::cell::RefCell;
+            use std::ops::{Deref, DerefMut};
+            thread_local!(static LOC: RefCell<::reformation::CaptureLocations> = RefCell::new(RE.capture_locations()));
 
-            let mut loc = re.capture_locations();
-            if let Some(_) = re.captures_read(&mut loc, string){
+            LOC.with(|loc|{
+                let is_ok = {
+                    let res = RE.captures_read(loc.borrow_mut().deref_mut(), string);
+                    res.is_some()
+                };
+                if is_ok{
+                    let guard = loc.borrow();
+                    let r = guard.deref();
+                    let captures = ::reformation::Captures::new(r, string);
+                    Self::from_captures(&captures, 1)
+                }else{
+                    Err(
+                        ::reformation::Error::NoRegexMatch(::reformation::NoRegexMatch{
+                            format: Self::regex_str(),
+                            request: string.to_string(),
+                        })
+                    )
+                }
+            })
+        }
+    }
+}
+
+fn fn_parse_token_stream_regular(input: &DeriveInput) -> TokenStream{
+    let ident = input.ident();
+    let ident2 = ident;
+    let ident_str = ident.to_string();
+    quote! {
+        fn parse(string: &'input str) -> Result<Self, ::reformation::Error>{
+            ::reformation::lazy_static!{
+                static ref RE: ::reformation::Regex = {
+                    let s = format!(r"\A{}\z", <#ident2 as ::reformation::Reformation>::regex_str());
+                    ::reformation::Regex::new(&s)
+                        .unwrap_or_else(|e| panic!("Cannot compile regex for {}: {}", #ident_str, e))
+                };
+            }
+            let mut loc = RE.capture_locations();
+            if let Some(_) = RE.captures_read(&mut loc, string){
                 let captures = ::reformation::Captures::new(&loc, string);
                 Self::from_captures(&captures, 1)
             }else{
@@ -100,9 +135,7 @@ fn fn_regex_token_stream(input: &DeriveInput) -> TokenStream {
     let res = quote! {
         #[inline]
         fn regex_str() -> &'static str{
-            // cannot use lazy_static, since it cannot access generic types
-            // Mutating static mut is unsafe, but ok then used with `Once` sync primitive
-            // see example at https://doc.rust-lang.org/std/sync/struct.Once.html
+            // Cannot pass lifetime through types via lazy_static
             let re = unsafe{
                 static mut RE: Option<String> = None;
                 static INIT: std::sync::Once = std::sync::Once::new();
@@ -334,10 +367,14 @@ impl GetRegexArguments for EnumVariant {
 }
 
 fn regex_for_type(ty: &ReType) -> TokenStream{
-    let override_ = ty.attr.as_ref().and_then(|a| a.regex_string.as_ref());
+    let override_ = ty.attr.regex_string.as_ref();
     if let Some(s) = override_{
+        let s = format!("({})", s);
         quote!{
-            #s
+            {
+                ::reformation::assert_primitive::<#ty>();
+                #s
+            }
         }
     }else{
         quote!{

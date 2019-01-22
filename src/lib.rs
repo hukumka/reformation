@@ -195,6 +195,7 @@ extern crate derive_more;
 
 pub use reformation_derive::*;
 pub use regex::{CaptureLocations, Regex, Error as RegexError};
+pub use lazy_static::lazy_static;
 
 pub trait Reformation<'t>: Sized{
     /// regular expression for matching this struct
@@ -218,6 +219,34 @@ pub trait Reformation<'t>: Sized{
     /// lazy_static!)
     fn parse(input: &'t str) -> Result<Self, Error>;
 }
+
+/// Marker trait allowing user to override inner regex of type via attribute
+///
+/// ```
+/// use reformation::Reformation;
+///
+/// #[derive(Reformation)]
+/// #[reformation("{}")]
+/// struct A<'input>(
+///     #[reformation("[a-z_]+")] // now A will match every lowercase set of words, separated with underscores
+///     &'input str
+/// );
+///
+/// #[derive(Reformation)]
+/// #[reformation("{}")]
+/// struct B<'input>(
+///     // #[reformation("whatever")] // not allowed, because A does not implement ```ReformationPrimitive```
+///     A<'input>
+/// );
+///
+/// fn main(){
+///     let a = A::parse("one_more__").unwrap();
+///     assert_eq!(a.0, "one_more__");
+/// }
+/// ```
+pub trait ReformationPrimitive{}
+
+pub fn assert_primitive<T: ReformationPrimitive>(){}
 
 macro_rules! group_impl_parse_primitive{
     ($re: expr, $($name: ty),*) => {
@@ -251,6 +280,8 @@ macro_rules! group_impl_parse_primitive{
                 Ok(res)
             }
         }
+
+        impl ReformationPrimitive for $name{}
     };
 }
 
@@ -331,6 +362,8 @@ impl<'t, T: Reformation<'t>> Reformation<'t> for Option<T>{
     }
 }
 
+impl<T> ReformationPrimitive for Option<T>{}
+
 impl<'t> Reformation<'t> for &'t str{
     #[inline]
     fn regex_str() -> &'static str{
@@ -354,6 +387,7 @@ impl<'t> Reformation<'t> for &'t str{
         Ok(input)
     }
 }
+impl<'a> ReformationPrimitive for &'a str{}
 
 #[cfg(test)]
 mod tests {

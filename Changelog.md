@@ -1,5 +1,6 @@
-### 0.4.0
+## 0.4.0
 + Change trait to support types containing references (such as &str)
++ Allow override of regular expression of primitive via attribute
 + Add benchmark to prove that it is zero-cost abstraction
 
 ### 0.3.1

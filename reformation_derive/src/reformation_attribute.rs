@@ -17,6 +17,7 @@ pub struct ReformationAttribute {
 
     pub slack: bool,
     pub no_regex: bool,
+    pub alloc_per_thread: bool,
     pub override_where: Option<Option<WhereClause>>,
 }
 
@@ -27,13 +28,18 @@ impl ReformationAttribute {
             regex_string: None,
             slack: false,
             no_regex: false,
+            alloc_per_thread: false,
             override_where: None,
         }
     }
 
     /// Parse ReformationAttribute from set of attributes on DeriveInput
     pub fn parse(span: Span, attrs: Vec<Attribute>) -> syn::Result<Self> {
-        let attr = Self::find_attribute(span, attrs)?;
+        let attr = if let Some(a) = Self::find_attribute(attrs){
+            a
+        }else{
+            return Ok(Self::new(span));
+        };
         let tts = attr.tts;
         let stream_str = quote!(#tts).to_string();
         let res: Self = syn::parse_str(&stream_str)
@@ -41,11 +47,10 @@ impl ReformationAttribute {
         Ok(res)
     }
 
-    fn find_attribute(span: Span, attrs: Vec<Attribute>) -> syn::Result<Attribute> {
+    fn find_attribute(attrs: Vec<Attribute>) -> Option<Attribute> {
         attrs
             .into_iter()
             .find(|a| is_reformation_attr(a))
-            .ok_or_else(|| errors::no_reformation_attribute(span))
     }
 
     pub fn regex(&self) -> syn::Result<&str>{
@@ -119,6 +124,10 @@ impl ReformationAttribute{
                     },
                     "slack" => {
                         self.slack = true;
+                        Ok(())
+                    },
+                    "alloc_per_thread" => {
+                        self.alloc_per_thread = true;
                         Ok(())
                     },
                     _ => {

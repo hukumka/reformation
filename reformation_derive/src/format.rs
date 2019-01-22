@@ -1,7 +1,6 @@
 use std::iter::Peekable;
 use std::str::CharIndices;
 
-use std::collections::HashSet;
 use std::error::Error;
 use std::fmt;
 

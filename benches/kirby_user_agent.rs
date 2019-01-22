@@ -5,7 +5,7 @@
 #[macro_use]
 extern crate criterion;
 
-use reformation::{Reformation, Captures};
+use reformation::Reformation;
 use criterion::{Criterion, Fun};
 use regex::Regex;
 use lazy_static::lazy_static;
@@ -54,7 +54,7 @@ struct UserAgent1<'input>{ // 'input - special lifetime name corresponding to li
     rubygems: Version<'input>,
     ruby: Version<'input>,
 
-    #[reformation(r"([^)]*)")] // use regex ([^)]*) to parse platform field instead of standard one.
+    #[reformation(r"[^)]*")] // use regex ([^)]*) to parse platform field instead of standard one.
     platform: &'input str,
 
     command: &'input str,
@@ -70,7 +70,7 @@ struct UserAgent1<'input>{ // 'input - special lifetime name corresponding to li
 struct UserAgent2<'input>{
     rubygems: Version<'input>,
     ruby: Version<'input>,
-    #[reformation("(.*)")]
+    #[reformation(".*")] // only to produce identical regex as kirby. Removing it actually result in slight performance improvement
     platform: &'input str,
     gemstash: Option<Version<'input>>,
 }
@@ -86,7 +86,7 @@ struct UserAgent3<'input>{
 #[derive(Reformation)]
 #[reformation("{}")]
 struct Version<'input>(
-    #[reformation(r"([0-9a-zA-Z.\-]+)")]
+    #[reformation(r"[0-9a-zA-Z.\-]+")]
     &'input str
 );
 
