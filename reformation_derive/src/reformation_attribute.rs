@@ -10,7 +10,7 @@ mod errors {
 }
 
 /// Struct representing attribute `#[reformation(...)]`
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ReformationAttribute {
     pub span: Span,
     pub regex_string: Option<String>,

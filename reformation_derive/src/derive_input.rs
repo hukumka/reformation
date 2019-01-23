@@ -15,7 +15,6 @@ mod errors {
 }
 
 /// DeriveInput parsed into easily manipulated view
-#[derive(Debug)]
 pub struct DeriveInput {
     ident: Ident,
     generics: Generics,
@@ -25,7 +24,6 @@ pub struct DeriveInput {
 }
 
 /// Fields specification of derive input
-#[derive(Debug)]
 pub enum Arguments {
     Named(ArgumentsNamed),
     Pos(ArgumentsPos),
@@ -34,7 +32,6 @@ pub enum Arguments {
 }
 
 /// Fields specification of struct
-#[derive(Debug)]
 pub struct ArgumentsNamed {
     fields: Vec<Ident>,
     types: Vec<ReType>,
@@ -42,22 +39,19 @@ pub struct ArgumentsNamed {
 }
 
 /// Fields specification of tuplestruct
-#[derive(Debug)]
 pub struct ArgumentsPos(Vec<ReType>);
 
 /// Field specification of enums
-#[derive(Debug)]
 pub struct ArgumentsCases(Vec<EnumVariant>);
 
 /// Single variant of enum
-#[derive(Debug)]
 pub struct EnumVariant {
     ident: Ident,
     types: Vec<ReType>,
     attribute: ReformationAttribute,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ReType{
     pub ty: Type,
     pub attr: ReformationAttribute,

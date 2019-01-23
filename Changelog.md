@@ -2,6 +2,7 @@
 + Change trait to support types containing references (such as &str)
 + Allow override of regular expression of primitive via attribute
 + Add benchmark to prove that it is zero-cost abstraction
++ Add per-variant regex declaration for enum
 
 ### 0.3.1
 + Fix failing test
