@@ -55,4 +55,11 @@ enum J{
     A(i32, i32)
 }
 
+#[derive(Reformation)]
+#[reformation("{a}")]
+struct K{
+    #[reformation("(")]
+    a: usize
+}
+
 fn main(){}

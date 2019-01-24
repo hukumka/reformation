@@ -66,15 +66,16 @@ fn main(){
 ```
 
 ### Enums
-Current enum supports only following pattern: `r"(variant1|variant2|variant_with_value\({}\)|other_variant_with_value{})"`
 ```rust
 use reformation::Reformation;
 
 #[derive(Reformation, Eq, PartialEq, Debug)]
-#[reformation(r"(Queen\({}\)|Worker\({}\)|Warrior)")]
 enum Ant{
+    #[reformation(r"Queen\({}\)")]
     Queen(String),
+    #[reformation(r"Worker\({}\)")]
     Worker(i32),
+    #[reformation(r"Warrior")]
     Warrior
 }
 

@@ -331,13 +331,13 @@ impl StructFormat {
     }
 
     fn build_regex(&self) -> syn::Result<String> {
-        test_format_regex(self.span, &self.format)?;
+        test_format_regex(self.span, &self.format.build_empty())?;
         Ok(self.format.to_string())
     }
 }
 
-fn test_format_regex(span: Span, format: &Format) -> syn::Result<()> {
-    match Regex::new(&format.build_empty()) {
+fn test_format_regex(span: Span, s: &str) -> syn::Result<()> {
+    match Regex::new(s) {
         Ok(r) => {
             if r.capture_names().flatten().next().is_some() {
                 return Err(errors::format_string_contains_named_capture(span));
@@ -370,7 +370,7 @@ impl EnumFormat {
             .map(|s| {
                 let format = Format::build(s).map_err(|e| errors::format_error(span, e))?;
                 let format = apply_modes(format, &attr);
-                test_format_regex(span, &format)?;
+                test_format_regex(span, &format.build_empty())?;
                 Ok(format)
             })
             .collect();
@@ -549,6 +549,10 @@ impl EnumVariant {
 impl ReType{
     fn new(ty: &Type, attrs: &[Attribute]) -> syn::Result<Self>{
         let attr = ReformationAttribute::parse(Span::call_site(), attrs.to_vec())?;
+        // check regex for correctness
+        if let Some(ref s) =  attr.regex_string{
+            test_format_regex(attr.span, s)?;
+        }
         Ok(Self{
             ty: ty.clone(),
             attr,

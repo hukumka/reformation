@@ -11,7 +11,7 @@
 //! + signed integers: `i8` `i16` `i32` `i64` `i128` `isize`
 //! + unsigned integers: `u8` `u16` `u32` `u64` `u128` `usize`
 //! + floats: `f32` `f64`
-//! + `String`
+//! + `String`, &str
 //! + `char`
 //!
 //! ## Structs
@@ -61,15 +61,16 @@
 //! ```
 //!
 //! ## Enums
-//! Current enum supports only following pattern: `r"(variant1|variant2|variant_with_value\({}\)|other_variant_with_value{})"`
 //! ```
 //! use reformation::Reformation;
 //!
 //! #[derive(Reformation, Eq, PartialEq, Debug)]
-//! #[reformation(r"(Queen\({}\)|Worker\({}\)|Warrior)")]
 //! enum Ant{
+//!     #[reformation(r"Queen\({}\)")]
 //!     Queen(String),
+//!     #[reformation(r"Worker\({}\)")]
 //!     Worker(i32),
+//!     #[reformation(r"Warrior")]
 //!     Warrior
 //! }
 //!
@@ -84,6 +85,12 @@
 //!     assert_eq!(warrior, Ant::Warrior);
 //! }
 //! ```
+//!
+//! Old syntax:
+//!
+//! `r"(variant1|variant2|variant_with_value\({}\)|other_variant_with_value{})"`
+//!
+//! is deprecated
 //!
 //! ## Modes
 //!
