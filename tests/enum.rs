@@ -1,15 +1,15 @@
 use reformation::Reformation;
 
 #[derive(Reformation, PartialEq, Debug)]
-enum A{
+enum A {
     #[reformation("variant1")]
     V1,
     #[reformation("variant2{}")]
-    V2(usize)
+    V2(usize),
 }
 
 #[test]
-fn test_base_enum() -> Result<(), reformation::Error>{
+fn test_base_enum() -> Result<(), reformation::Error> {
     let a = A::parse("variant1")?;
     assert_eq!(a, A::V1);
     let b = A::parse("variant259")?;

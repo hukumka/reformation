@@ -9,9 +9,9 @@ struct Vec {
 }
 
 #[test]
-fn test_vec(){
+fn test_vec() {
     let real = Vec::parse("Vec{1, 2, 3}");
-    let expected = Vec{
+    let expected = Vec {
         x: 1.0,
         y: 2.0,
         z: 3.0,
@@ -34,38 +34,35 @@ struct Rect {
 }
 
 #[test]
-fn test_rect(){
+fn test_rect() {
     let real = Rect::parse("Rect{Vec{1, 1, 0}; Vec{-3.e-5,  0.03,3}}");
-    let expected = Rect{
-        a: Vec{
+    let expected = Rect {
+        a: Vec {
             x: 1.0,
             y: 1.0,
-            z: 0.0
+            z: 0.0,
         },
-        b: Vec{
+        b: Vec {
             x: -3.0e-5,
             y: 0.03,
-            z: 3.0
+            z: 3.0,
         },
-        zero: 0
+        zero: 0,
     };
     assert_eq!(real, Ok(expected));
 }
 
 #[derive(Reformation, PartialEq, Debug)]
 #[reformation("{b}, {a}")]
-struct Order{
+struct Order {
     a: i32,
     b: i32,
 }
 
 #[test]
-fn test_order(){
+fn test_order() {
     let real = Order::parse("1, 3");
-    let expected = Order{
-        a: 3,
-        b: 1,
-    };
+    let expected = Order { a: 3, b: 1 };
     assert_eq!(real, Ok(expected));
 }
 
@@ -74,7 +71,7 @@ fn test_order(){
 struct Unit;
 
 #[test]
-fn test_unit(){
+fn test_unit() {
     let u = Unit::parse("unit");
     assert_eq!(u, Ok(Unit));
     let u = Unit::parse("u");

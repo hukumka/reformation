@@ -5,15 +5,14 @@
 #[macro_use]
 extern crate criterion;
 
-use reformation::Reformation;
 use criterion::{Criterion, Fun};
-use regex::Regex;
 use lazy_static::lazy_static;
+use reformation::Reformation;
+use regex::Regex;
 
-
-fn parse_re(s: &str) -> Option<UserAgent>{
-    if let Ok(u) = UserAgent1::parse(s){
-        Some(UserAgent{
+fn parse_re(s: &str) -> Option<UserAgent> {
+    if let Ok(u) = UserAgent1::parse(s) {
+        Some(UserAgent {
             bundler: Some(u.bundler.0),
             rubygems: u.rubygems.0,
             ruby: Some(u.ruby.0),
@@ -23,33 +22,36 @@ fn parse_re(s: &str) -> Option<UserAgent>{
             truffleruby: u.truffleruby.map(|x| x.0),
             options: u.options,
             ci: u.ci,
-            gemstash: u.gemstash.map(|x| x.0)
+            gemstash: u.gemstash.map(|x| x.0),
         })
-    }else if let Ok(u) = UserAgent2::parse(s){
-        Some(UserAgent{
+    } else if let Ok(u) = UserAgent2::parse(s) {
+        Some(UserAgent {
             rubygems: u.rubygems.0,
             ruby: Some(u.ruby.0),
             platform: Some(u.platform),
             gemstash: u.gemstash.map(|x| x.0),
             ..Default::default()
         })
-    }else if let Ok(u) = UserAgent3::parse(s){
+    } else if let Ok(u) = UserAgent3::parse(s) {
         Some(UserAgent {
             rubygems: u.rubygems.0,
             ..Default::default()
         })
-    }else{
+    } else {
         None
     }
 }
 
 #[derive(Reformation)]
-#[reformation("\
-    bundler/{bundler} rubygems/{rubygems} ruby/{ruby} \\({platform}\\) command/{command}\
-    ( jruby/{jruby})?( truffleruby/{truffleruby})?( options/{options})?( ci/{ci})? \
-    [a-f0-9]{{16}}( Gemstash/{gemstash})?\
-")]
-struct UserAgent1<'input>{ // 'input - special lifetime name corresponding to lifetime of input string
+#[reformation(
+    "\
+     bundler/{bundler} rubygems/{rubygems} ruby/{ruby} \\({platform}\\) command/{command}\
+     ( jruby/{jruby})?( truffleruby/{truffleruby})?( options/{options})?( ci/{ci})? \
+     [a-f0-9]{{16}}( Gemstash/{gemstash})?\
+     "
+)]
+struct UserAgent1<'input> {
+    // 'input - special lifetime name corresponding to lifetime of input string
     bundler: Version<'input>,
     rubygems: Version<'input>,
     ruby: Version<'input>,
@@ -67,17 +69,18 @@ struct UserAgent1<'input>{ // 'input - special lifetime name corresponding to li
 
 #[derive(Reformation)]
 #[reformation(r"(Ruby, )?RubyGems/{rubygems} {platform} Ruby/{ruby} \(.*?\)( jruby| truffleruby| rbx)?( Gemstash/{gemstash})?")]
-struct UserAgent2<'input>{
+struct UserAgent2<'input> {
     rubygems: Version<'input>,
     ruby: Version<'input>,
-    #[reformation(".*")] // only to produce identical regex as kirby. Removing it actually result in slight performance improvement
+    #[reformation(".*")]
+    // only to produce identical regex as kirby. Removing it actually result in slight performance improvement
     platform: &'input str,
     gemstash: Option<Version<'input>>,
 }
 
 #[derive(Reformation)]
 #[reformation(r"Ruby, Gems {rubygems}")]
-struct UserAgent3<'input>{
+struct UserAgent3<'input> {
     rubygems: Version<'input>,
 }
 
@@ -85,10 +88,7 @@ struct UserAgent3<'input>{
 // specify it via type
 #[derive(Reformation)]
 #[reformation("{}")]
-struct Version<'input>(
-    #[reformation(r"[0-9a-zA-Z.\-]+")]
-    &'input str
-);
+struct Version<'input>(#[reformation(r"[0-9a-zA-Z.\-]+")] &'input str);
 
 // Original
 
@@ -208,19 +208,19 @@ pub fn parse(a: &str) -> Option<UserAgent> {
     }
 }
 
-fn reformation_parse(inputs: &Vec<&str>){
-    for i in inputs{
+fn reformation_parse(inputs: &Vec<&str>) {
+    for i in inputs {
         let r = parse_re(*i).unwrap();
     }
 }
 
-fn kirby_parse(inputs: &Vec<&str>){
-    for i in inputs{
+fn kirby_parse(inputs: &Vec<&str>) {
+    for i in inputs {
         let r = parse(i).unwrap();
     }
 }
 
-fn compare(c: &mut Criterion){
+fn compare(c: &mut Criterion) {
     test_parse();
     let inputs = vec![
         "bundler/1.16.1 rubygems/2.6.11 ruby/2.4.1 (x86_64-pc-linux-gnu) command/install options/no_install,mirror.https://rubygems.org/,mirror.https://rubygems.org/.fallback_timeout/,path 59dbf8e99fa09c0a",
@@ -241,7 +241,6 @@ fn compare(c: &mut Criterion){
 
 criterion_group!(benches, compare);
 criterion_main!(benches);
-
 
 fn test_parse() {
     assert_eq!(

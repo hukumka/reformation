@@ -48,7 +48,6 @@ fn main() {
     let r = Rect::parse("Rect{Vec{1, 1, 0}; Vec{-3.e-5,  0.03,3}}").unwrap();
     println!("{:?}", r);
 
-
     let pirate_crab = Crab::parse(r"(\|)(x_^)(|/)").unwrap();
     println!("{:?}", pirate_crab);
 

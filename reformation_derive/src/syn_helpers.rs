@@ -15,4 +15,3 @@ pub fn expr_bool_lit(x: &Expr) -> Option<bool> {
         None
     }
 }
-

@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use crate::derive_input::{
-    Arguments, ArgumentsCases, ArgumentsNamed, ArgumentsPos, DeriveInput, EnumVariant, ReType
+    Arguments, ArgumentsCases, ArgumentsNamed, ArgumentsPos, DeriveInput, EnumVariant, ReType,
 };
 
 /// Generate ```TokenStream``` with implementation of ```Reformation``` and ```FromStr``` for `input`
@@ -27,8 +27,8 @@ fn impl_reformation(input: &DeriveInput) -> TokenStream {
     let from_captures = fn_from_captures_token_stream(&input);
     let parse = fn_parse_token_stream(&input);
 
-    if input.generics().type_params().next().is_some(){
-        return quote!{
+    if input.generics().type_params().next().is_some() {
+        return quote! {
             compile_error!{"Generic type parameters not supported. "}
         };
     }
@@ -42,15 +42,15 @@ fn impl_reformation(input: &DeriveInput) -> TokenStream {
     }
 }
 
-fn fn_parse_token_stream(input: &DeriveInput) -> TokenStream{
-    if input.use_tls_for_parse(){
+fn fn_parse_token_stream(input: &DeriveInput) -> TokenStream {
+    if input.use_tls_for_parse() {
         fn_parse_token_stream_tls(input)
-    }else{
+    } else {
         fn_parse_token_stream_regular(input)
     }
 }
 
-fn fn_parse_token_stream_tls(input: &DeriveInput) -> TokenStream{
+fn fn_parse_token_stream_tls(input: &DeriveInput) -> TokenStream {
     let ident = input.ident();
     let ident2 = ident;
     let ident_str = ident.to_string();
@@ -91,7 +91,7 @@ fn fn_parse_token_stream_tls(input: &DeriveInput) -> TokenStream{
     }
 }
 
-fn fn_parse_token_stream_regular(input: &DeriveInput) -> TokenStream{
+fn fn_parse_token_stream_regular(input: &DeriveInput) -> TokenStream {
     let ident = input.ident();
     let ident2 = ident;
     let ident_str = ident.to_string();
@@ -337,8 +337,7 @@ impl GetRegexArguments for ArgumentsNamed {
 
 impl GetRegexArguments for ArgumentsPos {
     fn regex_arguments(&self) -> TokenStream {
-        let types = (&self).into_iter()
-            .map(regex_for_type);
+        let types = (&self).into_iter().map(regex_for_type);
         quote! {
             #(#types),*
         }
@@ -366,18 +365,18 @@ impl GetRegexArguments for EnumVariant {
     }
 }
 
-fn regex_for_type(ty: &ReType) -> TokenStream{
+fn regex_for_type(ty: &ReType) -> TokenStream {
     let override_ = ty.attr.regex_string.as_ref();
-    if let Some(s) = override_{
+    if let Some(s) = override_ {
         let s = format!("({})", s);
-        quote!{
+        quote! {
             {
                 ::reformation::assert_primitive::<#ty>();
                 #s
             }
         }
-    }else{
-        quote!{
+    } else {
+        quote! {
             <#ty as ::reformation::Reformation>::regex_str()
         }
     }

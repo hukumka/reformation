@@ -2,25 +2,24 @@ use reformation::Reformation;
 
 // Should not compile without reformation attribute
 #[derive(Reformation)]
-struct A{}
+struct A {}
 
 // Should not compile, since format string is not correct regular expression
 #[derive(Reformation)]
 #[reformation("(")]
-struct B{}
+struct B {}
 
 // Format string does not cover fields, which does not present in struct
 #[derive(Reformation)]
 #[reformation("{x}")]
-struct C{
-}
+struct C {}
 
 // Format string features unnamed argument
 // TODO: figure out why span is broken
 #[derive(Reformation)]
 #[reformation("{}")]
-struct D{
-    a: i32
+struct D {
+    a: i32,
 }
 
 // Format string does not contain enough arguments
@@ -33,7 +32,6 @@ struct E(usize);
 #[reformation("{x}")]
 struct F(usize);
 
-
 // Format string contains to many arguments
 #[derive(Reformation)]
 #[reformation("{} {}")]
@@ -42,24 +40,24 @@ struct G(usize);
 // Format string does not cover all variants
 #[derive(Reformation)]
 #[reformation("(RED|GREEN)")]
-enum H{
+enum H {
     RED,
     GREEN,
-    BLUE
+    BLUE,
 }
 
 // Format string does not cover variant values
 #[derive(Reformation)]
 #[reformation("({})")]
-enum J{
-    A(i32, i32)
+enum J {
+    A(i32, i32),
 }
 
 #[derive(Reformation)]
 #[reformation("{a}")]
-struct K{
+struct K {
     #[reformation("(")]
-    a: usize
+    a: usize,
 }
 
-fn main(){}
+fn main() {}

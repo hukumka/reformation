@@ -121,7 +121,7 @@ pub fn unions_are_not_supported(span: Span) -> Error {
     Error::new(span, msg)
 }
 
-pub fn enum_variant_not_covered(span: Span) -> Error{
+pub fn enum_variant_not_covered(span: Span) -> Error {
     let msg = "Variant has no regex specified.";
     Error::new(span, msg)
 }

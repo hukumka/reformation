@@ -200,11 +200,11 @@
 #[macro_use]
 extern crate derive_more;
 
-pub use reformation_derive::*;
-pub use regex::{CaptureLocations, Regex, Error as RegexError};
 pub use lazy_static::lazy_static;
+pub use reformation_derive::*;
+pub use regex::{CaptureLocations, Error as RegexError, Regex};
 
-pub trait Reformation<'t>: Sized{
+pub trait Reformation<'t>: Sized {
     /// regular expression for matching this struct
     fn regex_str() -> &'static str;
 
@@ -251,9 +251,9 @@ pub trait Reformation<'t>: Sized{
 ///     assert_eq!(a.0, "one_more__");
 /// }
 /// ```
-pub trait ReformationPrimitive{}
+pub trait ReformationPrimitive {}
 
-pub fn assert_primitive<T: ReformationPrimitive>(){}
+pub fn assert_primitive<T: ReformationPrimitive>() {}
 
 macro_rules! group_impl_parse_primitive{
     ($re: expr, $($name: ty),*) => {
@@ -294,29 +294,26 @@ macro_rules! group_impl_parse_primitive{
 
 #[derive(Copy, Clone)]
 /// Wrapper to get captures of regular expression
-pub struct Captures<'a, 't>{
+pub struct Captures<'a, 't> {
     captures: &'a CaptureLocations,
-    input: &'t str
+    input: &'t str,
 }
 
-impl<'a, 't> Captures<'a, 't>{
+impl<'a, 't> Captures<'a, 't> {
     #[inline]
-    pub fn new(captures: &'a CaptureLocations, input: &'t str) -> Self{
-        Self{
-            captures,
-            input
-        }
+    pub fn new(captures: &'a CaptureLocations, input: &'t str) -> Self {
+        Self { captures, input }
     }
 
     #[inline]
     /// Get string corresponding to `id` capture group
-    pub fn get(&self, id: usize) -> Option<&'t str>{
+    pub fn get(&self, id: usize) -> Option<&'t str> {
         self.captures.get(id).map(|(a, b)| &self.input[a..b])
     }
 }
 
 #[derive(Debug, Display, Eq, PartialEq)]
-pub enum Error{
+pub enum Error {
     NoRegexMatch(NoRegexMatch),
     DoesNotContainGroup(DoesNotContainGroup),
     #[display(fmt = "{:?}", "_0")]
@@ -327,7 +324,11 @@ pub enum Error{
 pub struct DoesNotContainGroup;
 
 #[derive(Debug, Display, Eq, PartialEq)]
-#[display(fmt = "No regex match: regex {:?} does not match  string {:?}", format, request)]
+#[display(
+    fmt = "No regex match: regex {:?} does not match  string {:?}",
+    format,
+    request
+)]
 pub struct NoRegexMatch {
     pub format: &'static str,
     pub request: String,
@@ -338,63 +339,63 @@ group_impl_parse_primitive! {r"((?:[\+-]?\d+(?:.\d*)?|.\d+)(?:[eE][\+-]?\d+)?)",
 group_impl_parse_primitive! {r"(.*)", String}
 group_impl_parse_primitive! {r"(.)", char}
 
-impl<'t, T: Reformation<'t>> Reformation<'t> for Option<T>{
+impl<'t, T: Reformation<'t>> Reformation<'t> for Option<T> {
     #[inline]
-    fn regex_str() -> &'static str{
+    fn regex_str() -> &'static str {
         T::regex_str()
     }
 
     #[inline]
-    fn captures_count() -> usize{
+    fn captures_count() -> usize {
         T::captures_count()
     }
 
     #[inline]
-    fn from_captures<'a>(captures: &Captures<'a, 't>, offset: usize) -> Result<Self, Error>{
-        if captures.get(offset).is_some(){
-            T::from_captures(captures, offset)
-                .map(|x| Some(x))
-        }else{
+    fn from_captures<'a>(captures: &Captures<'a, 't>, offset: usize) -> Result<Self, Error> {
+        if captures.get(offset).is_some() {
+            T::from_captures(captures, offset).map(|x| Some(x))
+        } else {
             Ok(None)
         }
     }
 
     #[inline]
-    fn parse(input: &'t str) -> Result<Self, Error>{
+    fn parse(input: &'t str) -> Result<Self, Error> {
         match T::parse(input) {
             Ok(x) => Ok(Some(x)),
             Err(Error::DoesNotContainGroup(_)) => Ok(None),
-            Err(e) => Err(e)
+            Err(e) => Err(e),
         }
     }
 }
 
-impl<T> ReformationPrimitive for Option<T>{}
+impl<T> ReformationPrimitive for Option<T> {}
 
-impl<'t> Reformation<'t> for &'t str{
+impl<'t> Reformation<'t> for &'t str {
     #[inline]
-    fn regex_str() -> &'static str{
+    fn regex_str() -> &'static str {
         "(.*?)"
     }
 
     #[inline]
-    fn captures_count() -> usize{
+    fn captures_count() -> usize {
         1
     }
 
     #[inline]
-    fn from_captures<'a>(captures: &Captures<'a, 't>, offset: usize) -> Result<Self, Error>{
-        let res = captures.get(offset)
+    fn from_captures<'a>(captures: &Captures<'a, 't>, offset: usize) -> Result<Self, Error> {
+        let res = captures
+            .get(offset)
             .ok_or_else(|| Error::DoesNotContainGroup(DoesNotContainGroup))?;
         Ok(res)
     }
 
     #[inline]
-    fn parse(input: &'t str) -> Result<Self, Error>{
+    fn parse(input: &'t str) -> Result<Self, Error> {
         Ok(input)
     }
 }
-impl<'a> ReformationPrimitive for &'a str{}
+impl<'a> ReformationPrimitive for &'a str {}
 
 #[cfg(test)]
 mod tests {
