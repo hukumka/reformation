@@ -1,7 +1,5 @@
 [![Build Status](https://travis-ci.org/hukumka/reformation.svg?branch=master)](https://travis-ci.org/hukumka/reformation)
 
-##### Note: current version is preparation for 0.4, and significantly differs from crate.io one
-
 # reformation
  Parsing via regular expressions using format syntax
 
