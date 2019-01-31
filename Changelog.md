@@ -1,3 +1,7 @@
+### 0.4.1
++ Fix bug with enums not being put into group
++ Hide clippy lint on evaluation order
+
 ## 0.4.0
 + Change trait to support types containing references (such as &str)
 + Allow override of regular expression of primitive via attribute
