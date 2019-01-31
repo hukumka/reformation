@@ -33,6 +33,7 @@ fn impl_reformation(input: &DeriveInput) -> TokenStream {
         };
     }
     quote! {
+        #[allow(clippy::eval_order_dependence)]
         impl #impl_gen ::reformation::Reformation<'input> for #ident #type_gen #where_clause{
             #regex_tts
             #count
