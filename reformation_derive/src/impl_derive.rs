@@ -43,55 +43,6 @@ fn impl_reformation(input: &DeriveInput) -> TokenStream {
 }
 
 fn fn_parse_token_stream(input: &DeriveInput) -> TokenStream {
-    if input.use_tls_for_parse() {
-        fn_parse_token_stream_tls(input)
-    } else {
-        fn_parse_token_stream_regular(input)
-    }
-}
-
-fn fn_parse_token_stream_tls(input: &DeriveInput) -> TokenStream {
-    let ident = input.ident();
-    let ident2 = ident;
-    let ident_str = ident.to_string();
-    quote! {
-        fn parse(string: &'input str) -> Result<Self, ::reformation::Error>{
-            ::reformation::lazy_static!{
-                static ref RE: ::reformation::Regex = {
-                    let s = format!(r"\A{}\z", <#ident2 as ::reformation::Reformation>::regex_str());
-                    ::reformation::Regex::new(&s)
-                        .unwrap_or_else(|e| panic!("Cannot compile regex for {}: {}", #ident_str, e))
-                };
-            }
-
-            use std::cell::RefCell;
-            use std::ops::{Deref, DerefMut};
-            thread_local!(static LOC: RefCell<::reformation::CaptureLocations> = RefCell::new(RE.capture_locations()));
-
-            LOC.with(|loc|{
-                let is_ok = {
-                    let res = RE.captures_read(loc.borrow_mut().deref_mut(), string);
-                    res.is_some()
-                };
-                if is_ok{
-                    let guard = loc.borrow();
-                    let r = guard.deref();
-                    let captures = ::reformation::Captures::new(r, string);
-                    Self::from_captures(&captures, 1)
-                }else{
-                    Err(
-                        ::reformation::Error::NoRegexMatch(::reformation::NoRegexMatch{
-                            format: Self::regex_str(),
-                            request: string.to_string(),
-                        })
-                    )
-                }
-            })
-        }
-    }
-}
-
-fn fn_parse_token_stream_regular(input: &DeriveInput) -> TokenStream {
     let ident = input.ident();
     let ident2 = ident;
     let ident_str = ident.to_string();
@@ -122,7 +73,7 @@ fn fn_parse_token_stream_regular(input: &DeriveInput) -> TokenStream {
 
 /// Generate ```TokenStream``` representing method `regex_str`
 fn fn_regex_token_stream(input: &DeriveInput) -> TokenStream {
-    let base = input.regex_format_string();
+    let base = format!("(?:{})", input.regex_format_string());
     let args = input.arguments();
     if args.is_empty() {
         return quote! {

@@ -19,7 +19,6 @@ lazy_static = "1.1"
 # private
 reformation_derive = {path="reformation_derive", version="0.4.0"}
 derive_more = "0.13.0"
-anymap = "0.12.1"
 
 [dev-dependencies]
 criterion = "0.2.7"

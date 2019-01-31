@@ -78,10 +78,6 @@ impl DeriveInput {
         &self.final_regex_str
     }
 
-    pub fn use_tls_for_parse(&self) -> bool {
-        self.attributes.alloc_per_thread
-    }
-
     fn apply_where(&mut self) {
         if let Some(clause) = self.attributes.override_where.take() {
             self.generics.where_clause = clause;
