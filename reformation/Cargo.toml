@@ -15,7 +15,6 @@ categories = ["parsing"]
 [dependencies]
 # pub
 regex = "1"
-lazy_static = "1.1"
 # private
 reformation_derive = {path="../reformation_derive", version="0.4.1"}
 derive_more = "0.13.0"

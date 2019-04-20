@@ -200,7 +200,6 @@
 #[macro_use]
 extern crate derive_more;
 
-pub use lazy_static::lazy_static;
 pub use reformation_derive::*;
 pub use regex::{CaptureLocations, Error as RegexError, Regex};
 
@@ -219,11 +218,6 @@ pub trait Reformation<'t>: Sized {
     fn from_captures<'a>(c: &Captures<'a, 't>, offset: usize) -> Result<Self, Error>;
 
     /// parse struct from str
-    ///
-    /// default implementation is not zero-cost abstraction, which must be kept in mind
-    /// when implementing trait by hand. (This version uses generic_static to handle
-    /// lazy initialization, which imply some extra costs, but for non-generic types it can be implemented with
-    /// lazy_static!)
     fn parse(input: &'t str) -> Result<Self, Error>;
 }
 

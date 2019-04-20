@@ -347,19 +347,23 @@ impl<'a> DeriveInput<'a> {
         let input_lifetime = self.unique_lifetime("input");
         quote! {
             fn parse(string: &#input_lifetime str) -> Result<Self, ::reformation::Error>{
-                ::reformation::lazy_static! {
-                    static ref RE: ::reformation::Regex = {
+                use ::reformation::{Regex, Captures, Error};
+                let re = unsafe{
+                    static mut RE: Option<Regex> = None;
+                    static mut INIT: std::sync::Once = std::sync::Once::new();
+                    INIT.call_once(|| {
                         let s = format!(r"\A{}\z", <#name as ::reformation::Reformation>::regex_str());
-                        ::reformation::Regex::new(&s).unwrap()
-                    };
-                }
-                let mut loc = RE.capture_locations();
-                if let Some(_) = RE.captures_read(&mut loc, string){
-                    let captures = ::reformation::Captures::new(&loc, string);
+                        RE = Some(Regex::new(&s).unwrap());
+                    });
+                    &RE.as_ref().unwrap_or_else(|| unreachable!())
+                };
+                let mut loc = re.capture_locations();
+                if let Some(_) = re.captures_read(&mut loc, string){
+                    let captures = Captures::new(&loc, string);
                     Self::from_captures(&captures, 1)
                 }else{
                     Err(
-                        ::reformation::Error::NoRegexMatch(::reformation::NoRegexMatch{
+                        Error::NoRegexMatch(::reformation::NoRegexMatch{
                             format: Self::regex_str(),
                             request: string.to_string(),
                         })

@@ -1,3 +1,10 @@
+### 0.5.0
++ Remove old enum syntax
++ Remove need for magical lifetime name and 
+    add support for multiple lifetimes for 
+    in place parsing.
++ Remove lazy_static public dependancy
+
 ### 0.4.1
 + Fix bug with enums not being put into group
 + Hide clippy lint on evaluation order
