@@ -72,6 +72,7 @@ struct Unit;
 
 #[test]
 fn test_unit() {
+
     let u = Unit::parse("unit");
     assert_eq!(u, Ok(Unit));
     let u = Unit::parse("u");

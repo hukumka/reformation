@@ -4,6 +4,7 @@ use std::str::CharIndices;
 use std::error::Error;
 use std::fmt;
 
+#[derive(Debug)]
 pub struct Format {
     substrings: Vec<String>,
     arguments: Vec<Argument>,
@@ -51,9 +52,6 @@ impl Format {
         res.map_substrings(|x| x.replace("{{", "{").replace("}}", "}"));
         Ok(res)
     }
-    pub fn build_empty(&self) -> String {
-        self.substrings.join("")
-    }
 
     pub fn no_arguments(&self) -> bool {
         self.arguments.is_empty()
@@ -65,16 +63,14 @@ impl Format {
         }
     }
 
-    pub fn named_arguments(&self) -> Vec<String> {
-        let set: Vec<_> = self
+    pub fn named_arguments<'a>(&'a self) -> impl Iterator<Item=String> + 'a{
+        self
             .arguments
             .iter()
             .filter_map(|a| match a {
                 Argument::Named(s) => Some(s.clone()),
                 _ => None,
             })
-            .collect();
-        set
     }
 
     pub fn positional_arguments(&self) -> usize {
@@ -86,15 +82,13 @@ impl Format {
             })
             .count()
     }
-}
-
-impl ToString for Format {
-    fn to_string(&self) -> String {
+    
+    pub fn linearize(&self) -> String {
         let escape = |s: &str| s.replace("{", "{{").replace("}", "}}");
         let mut res = String::new();
-        for (s, a) in self.substrings.iter().zip(&self.arguments) {
+        for (s, _) in self.substrings.iter().zip(&self.arguments) {
             res.push_str(&escape(s));
-            res.push_str(&a.to_string());
+            res.push_str("{}");
         }
         res.push_str(&escape(self.substrings.last().unwrap()));
         res

@@ -235,7 +235,7 @@ pub trait Reformation<'t>: Sized {
 /// #[derive(Reformation)]
 /// #[reformation("{}")]
 /// struct A<'input>(
-///     #[reformation("[a-z_]+")] // now A will match every lowercase set of words, separated with underscores
+///     // #[reformation("[a-z_]+")] // now A will match every lowercase set of words, separated with underscores
 ///     &'input str
 /// );
 ///
@@ -275,7 +275,7 @@ macro_rules! group_impl_parse_primitive{
             #[inline]
             fn from_captures<'a>(c: &Captures<'a, 't>, offset: usize) -> Result<Self, Error>{
                 let res = c.get(offset)
-                    .ok_or_else(|| Error::DoesNotContainGroup(DoesNotContainGroup))?
+                    .ok_or_else(|| Error::DoesNotContainGroup)?
                     .parse::<$name>()
                     .map_err(|e| Error::Other(e.to_string()))?;
                 Ok(res)
@@ -294,6 +294,7 @@ macro_rules! group_impl_parse_primitive{
 
 #[derive(Copy, Clone)]
 /// Wrapper to get captures of regular expression
+#[derive(Debug)]
 pub struct Captures<'a, 't> {
     captures: &'a CaptureLocations,
     input: &'t str,
@@ -315,13 +316,10 @@ impl<'a, 't> Captures<'a, 't> {
 #[derive(Debug, Display, Eq, PartialEq)]
 pub enum Error {
     NoRegexMatch(NoRegexMatch),
-    DoesNotContainGroup(DoesNotContainGroup),
+    DoesNotContainGroup,
     #[display(fmt = "{:?}", "_0")]
     Other(String),
 }
-
-#[derive(Debug, Display, Eq, PartialEq)]
-pub struct DoesNotContainGroup;
 
 #[derive(Debug, Display, Eq, PartialEq)]
 #[display(
@@ -363,7 +361,7 @@ impl<'t, T: Reformation<'t>> Reformation<'t> for Option<T> {
     fn parse(input: &'t str) -> Result<Self, Error> {
         match T::parse(input) {
             Ok(x) => Ok(Some(x)),
-            Err(Error::DoesNotContainGroup(_)) => Ok(None),
+            Err(Error::DoesNotContainGroup) => Ok(None),
             Err(e) => Err(e),
         }
     }
@@ -386,7 +384,7 @@ impl<'t> Reformation<'t> for &'t str {
     fn from_captures<'a>(captures: &Captures<'a, 't>, offset: usize) -> Result<Self, Error> {
         let res = captures
             .get(offset)
-            .ok_or_else(|| Error::DoesNotContainGroup(DoesNotContainGroup))?;
+            .ok_or_else(|| Error::DoesNotContainGroup)?;
         Ok(res)
     }
 

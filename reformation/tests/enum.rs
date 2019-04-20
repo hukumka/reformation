@@ -18,6 +18,7 @@ enum B {
 
 #[test]
 fn test_base_enum() -> Result<(), reformation::Error> {
+    dbg!(A::regex_str());
     let a = A::parse("variant1")?;
     assert_eq!(a, A::V1);
     let b = A::parse("variant259")?;
@@ -27,6 +28,7 @@ fn test_base_enum() -> Result<(), reformation::Error> {
 
 #[test]
 fn test_enum_separation() -> Result<(), reformation::Error> {
+    dbg!(B::regex_str());
     let a = B::parse("8")?;
     assert_eq!(a, B::One(8));
     let b = B::parse("1..88")?;

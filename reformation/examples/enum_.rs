@@ -1,28 +1,38 @@
 use reformation::Reformation;
 
 #[derive(Reformation, Debug)]
-#[reformation(r"(red|green|grey\({}\)|yellow|blue={}, {})")]
 enum Color {
+    #[reformation("red")]
     Red,
+    #[reformation("green")]
     Green,
+    #[reformation(r"grey\({}\)")]
     Grey(i32),
+    #[reformation("yellow")]
     Yellow,
+    #[reformation(r"blue={}, {}")]
     Blue(i32, i32),
 }
 
 #[derive(Reformation, Debug, PartialEq)]
-#[reformation(r"(Bird({})|Plane({}))", no_regex = true)]
+#[reformation(no_regex = true)]
 enum Superman {
+    #[reformation("Bird({})")]
     Bird(f32),
+    #[reformation("Plane({})")]
     Plane(f32),
 }
 
 #[derive(Reformation, Debug, PartialEq)]
-#[reformation(r"([]|[{}]|[{}, {}]|[{}, {}, {}])", no_regex = true, slack = true)]
+#[reformation(no_regex = true, slack = true)]
 enum MiniList {
+    #[reformation("[]")]
     Zero,
+    #[reformation("[{}]")]
     One(i32),
+    #[reformation("[{}, {}]")]
     Two(i32, i32),
+    #[reformation("[{}, {}, {}]")]
     Three(i32, i32, i32),
 }
 

@@ -3,11 +3,8 @@ use proc_macro2::Span;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{AttrStyle, Attribute, Expr, Ident, Lit, WhereClause};
-
-// to use error::error_name instead of crate::error_messages::error_name
-mod errors {
-    pub use crate::error_messages::*;
-}
+use lazy_static::lazy_static;
+use regex::Regex;
 
 /// Struct representing attribute `#[reformation(...)]`
 #[derive(Clone)]
@@ -33,20 +30,47 @@ impl ReformationAttribute {
         }
     }
 
+    pub fn combine(&self, other: &Self) -> Self {
+        let s = other.regex_string.clone().or_else(|| self.regex_string.clone());
+        Self{
+            span: other.span,
+            regex_string: s,
+            slack: other.slack | self.slack,
+            no_regex: other.no_regex | self.no_regex,
+            alloc_per_thread: false,
+            override_where: None,
+        }
+    }
+
+    pub fn substr_mode(&self) -> impl Fn(&str)->String + '_ {
+        move |s| {
+            let s = if self.no_regex{
+                escape_regex(s)
+            }else{
+                no_capturing_groups(s)
+            };
+            if self.slack{
+                slack(&s)
+            }else{
+                s
+            }
+        }
+    }
+
     /// Parse ReformationAttribute from set of attributes on DeriveInput
-    pub fn parse(span: Span, attrs: Vec<Attribute>) -> syn::Result<Self> {
+    pub fn parse(span: Span, attrs: &[Attribute]) -> syn::Result<Self> {
         let attr = if let Some(a) = Self::find_attribute(attrs) {
             a
         } else {
             return Ok(Self::new(span));
         };
-        let tts = attr.tts;
+        let tts = &attr.tts;
         let stream_str = quote!(#tts).to_string();
         let res: Self = syn::parse_str(&stream_str).map_err(|e| syn::Error::new(span, e))?;
         Ok(res)
     }
 
-    fn find_attribute(attrs: Vec<Attribute>) -> Option<Attribute> {
+    fn find_attribute(attrs: &[Attribute]) -> Option<&Attribute> {
         attrs.into_iter().find(|a| is_reformation_attr(a))
     }
 
@@ -54,7 +78,7 @@ impl ReformationAttribute {
         self.regex_string
             .as_ref()
             .map(|s| s.as_str())
-            .ok_or_else(|| errors::no_format_string_in_attribute(self.span))
+            .ok_or_else(|| syn::Error::new(self.span, "No format string specified by attribute"))
     }
 }
 
@@ -125,9 +149,9 @@ impl ReformationAttribute {
                     self.alloc_per_thread = true;
                     Ok(())
                 }
-                _ => Err(errors::attribute_unknown_mode(
+                _ => Err(syn::Error::new(
                     self.span,
-                    &ident.to_string(),
+                    format!("Unknown mode: {:?}", &ident.to_string()),
                 )),
             },
             Mode::Str(s) => {
@@ -144,7 +168,14 @@ impl ReformationAttribute {
 
 fn expect_true(span: Span, name: &str, value: &Expr) -> syn::Result<()> {
     if expr_bool_lit(value) != Some(true) {
-        Err(errors::attribute_mode_expected_true(span, name, value))
+        Err(syn::Error::new(
+            span,
+            format!(
+                "Error expected `true` for mode `{}`, found `{}`",
+                name,
+                quote! {value}.to_string()
+            ),
+        ))
     } else {
         Ok(())
     }
@@ -158,4 +189,34 @@ fn is_reformation_attr(a: &Attribute) -> bool {
         _ => false,
     };
     quote!(#pound).to_string() == "#" && style_cmp && quote!(#path).to_string() == "reformation"
+}
+
+
+fn no_capturing_groups(input: &str) -> String {
+    let mut prev = None;
+    let mut res = String::new();
+    let mut iter = input.chars().peekable();
+    while let Some(c) = iter.next() {
+        if prev != Some('\\') && c == '(' && iter.peek() != Some(&'?') {
+            res.push_str("(?:");
+        } else {
+            res.push(c);
+        }
+        prev = Some(c);
+    }
+    res
+}
+
+fn escape_regex(input: &str) -> String {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"[\|\[\]\(\)\{\}\.\?\+\*\^\\]").unwrap();
+    }
+    RE.replace_all(input, r"\$0").to_string()
+}
+
+fn slack(input: &str) -> String {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"([,:;])\s+").unwrap();
+    }
+    RE.replace_all(input, r"$1\s*").to_string()
 }
