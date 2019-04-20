@@ -13,7 +13,7 @@ mod syn_helpers;
 
 use crate::format::Format;
 use crate::reformation_attribute::ReformationAttribute;
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use std::collections::HashMap;
 use syn::spanned::Spanned;
 
@@ -185,24 +185,44 @@ impl<'a> Item<'a> {
 
 impl<'a> DeriveInput<'a> {
     fn new(input: &'a mut syn::DeriveInput) -> syn::Result<Self> {
-        for t in input.generics.type_params_mut() {
-            t.bounds
-                .push(parse_quote!(::reformation::Reformation<'input>))
-        }
-
         Ok(Self {
             input,
             data: InputData::new(input)?,
         })
     }
 
+    fn unique_lifetime(&self, syffix: &str) -> syn::Lifetime {
+        let last = self
+            .input
+            .generics
+            .lifetimes()
+            .map(|x| x.lifetime.ident.to_string())
+            .max()
+            .unwrap_or(String::new());
+
+        let total = format!("'{}_{}", last, syffix);
+        syn::Lifetime::new(&total, Span::call_site())
+    }
+
     /// Generate ```TokenStream``` with implementation of ```Reformation``` for `input`
     fn impl_all(&self) -> TokenStream {
         let ident = &self.input.ident;
+
+        // Add lifetime " 'input: 'a + 'b + ... " to impl_gen
         let mut impl_gen = self.input.generics.clone();
-        impl_gen.params.push(parse_quote!('input));
+        let mut lifetimes = impl_gen.lifetimes();
+        let first = lifetimes.next();
+        let input_lifetime = self.unique_lifetime("input");
+        let input = parse_quote!(#input_lifetime #(: #first)* #(+ #lifetimes)* );
+        impl_gen.params.push(syn::GenericParam::Lifetime(input));
         let (impl_gen, _, _) = impl_gen.split_for_impl();
-        let (_, type_gen, where_clause) = self.input.generics.split_for_impl();
+        // add 'input bound on all generic types
+        let mut ty_gen = self.input.generics.clone();
+        for t in ty_gen.type_params_mut() {
+            t.bounds
+                .push(parse_quote!(::reformation::Reformation<#input_lifetime>))
+        }
+        let (_, type_gen, where_clause) = ty_gen.split_for_impl();
 
         let regex_str = self.regex_str_quote();
         let count = self.captures_count_quote();
@@ -211,7 +231,7 @@ impl<'a> DeriveInput<'a> {
 
         quote! {
             #[allow(clippy::eval_order_dependence)]
-            impl #impl_gen ::reformation::Reformation<'input> for #ident #type_gen #where_clause{
+            impl #impl_gen ::reformation::Reformation<#input_lifetime> for #ident #type_gen #where_clause{
                 #regex_str
                 #count
                 #from_captures
@@ -311,8 +331,10 @@ impl<'a> DeriveInput<'a> {
                 }
             }
         };
+        let input_lifetime = self.unique_lifetime("input");
+        let cap_lifetime = self.unique_lifetime("cap");
         let res = quote! {
-            fn from_captures<'a>(captures: &::reformation::Captures<'a, 'input>, mut offset: usize) -> Result<Self, ::reformation::Error> {
+            fn from_captures<#cap_lifetime>(captures: &::reformation::Captures<#cap_lifetime, #input_lifetime>, mut offset: usize) -> Result<Self, ::reformation::Error> {
                 #body
             }
         };
@@ -322,8 +344,9 @@ impl<'a> DeriveInput<'a> {
     fn parse_quote(&self) -> TokenStream {
         let ident = &self.input.ident;
         let name = quote! { #ident };
+        let input_lifetime = self.unique_lifetime("input");
         quote! {
-            fn parse(string: &'input str) -> Result<Self, ::reformation::Error>{
+            fn parse(string: &#input_lifetime str) -> Result<Self, ::reformation::Error>{
                 ::reformation::lazy_static! {
                     static ref RE: ::reformation::Regex = {
                         let s = format!(r"\A{}\z", <#name as ::reformation::Reformation>::regex_str());

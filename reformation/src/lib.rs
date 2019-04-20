@@ -234,16 +234,16 @@ pub trait Reformation<'t>: Sized {
 ///
 /// #[derive(Reformation)]
 /// #[reformation("{}")]
-/// struct A<'input>(
+/// struct A<'a>(
 ///     // #[reformation("[a-z_]+")] // now A will match every lowercase set of words, separated with underscores
-///     &'input str
+///     &'a str
 /// );
 ///
 /// #[derive(Reformation)]
 /// #[reformation("{}")]
-/// struct B<'input>(
+/// struct B<'a>(
 ///     // #[reformation("whatever")] // not allowed, because A does not implement ```ReformationPrimitive```
-///     A<'input>
+///     A<'a>
 /// );
 ///
 /// fn main(){

@@ -70,9 +70,21 @@ fn test_order() {
 #[reformation("unit")]
 struct Unit;
 
+#[derive(Reformation, PartialEq, Debug)]
+#[reformation("{a}, {b}")]
+struct InPlace<'a, 'b>{
+    a: &'a str,
+    b: &'b str,
+}
+
+#[test]
+fn in_place() {
+    let ab = InPlace::parse("wqr, asdfg");
+    assert_eq!(ab, Ok(InPlace{a: "wqr", b: "asdfg"}))
+}
+
 #[test]
 fn test_unit() {
-
     let u = Unit::parse("unit");
     assert_eq!(u, Ok(Unit));
     let u = Unit::parse("u");
