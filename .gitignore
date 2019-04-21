@@ -1,6 +1,7 @@
 /target
 /reformation_derive/target
 /reformation/target
+/failing_examples/target
 **/*.rs.bk
 /.idea
 reparse.iml
