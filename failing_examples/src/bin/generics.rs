@@ -9,7 +9,6 @@ struct A<T> {
     x: usize,
     _marker: std::marker::PhantomData<T>,
 }
-use reformation::Reformation;
 
 #[derive(Reformation)]
 #[reformation(r"A\({x}\)")]

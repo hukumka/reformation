@@ -215,14 +215,13 @@ impl<'a> DeriveInput<'a> {
         let input_lifetime = self.unique_lifetime("input");
         let input = parse_quote!(#input_lifetime #(: #first)* #(+ #lifetimes)* );
         impl_gen.params.push(syn::GenericParam::Lifetime(input));
-        let (impl_gen, _, _) = impl_gen.split_for_impl();
         // add 'input bound on all generic types
-        let mut ty_gen = self.input.generics.clone();
-        for t in ty_gen.type_params_mut() {
+        for t in impl_gen.type_params_mut() {
             t.bounds
                 .push(parse_quote!(::reformation::Reformation<#input_lifetime>))
         }
-        let (_, type_gen, where_clause) = ty_gen.split_for_impl();
+        let (impl_gen, _, where_clause) = impl_gen.split_for_impl();
+        let (_, type_gen, _) = self.input.generics.split_for_impl();
 
         let regex_str = self.regex_str_quote();
         let count = self.captures_count_quote();
@@ -257,20 +256,77 @@ impl<'a> DeriveInput<'a> {
                 }
             }
         };
+
+        let gen = self.generic_type_params();
+        let static_ = self.maybe_generic_static(
+            quote! {String},
+            quote! {create_regex},
+            quote! {|x: &str| x.to_string()},
+        );
         let res = quote! {
             fn regex_str() -> &'static str{
-                let re = unsafe{
-                    static mut RE: Option<String> = None;
-                    static INIT: std::sync::Once = std::sync::Once::new();
-                    INIT.call_once(|| {
-                        RE = Some(#fmt);
-                    });
-                    &RE
-                };
-                re.as_ref().unwrap_or_else(|| unreachable!())
+                fn create_regex #gen () -> String {
+                    #fmt
+                }
+                #static_.as_str()
             }
         };
         res
+    }
+
+    fn generic_type_params(&self) -> TokenStream {
+        let mut generics = self.input.generics.clone();
+        let mut lifetimes = generics.lifetimes();
+        let first = lifetimes.next();
+        let input_lifetime = self.unique_lifetime("input");
+        let input = parse_quote!(#input_lifetime #(: #first)* #(+ #lifetimes)* );
+        generics.params.push(syn::GenericParam::Lifetime(input));
+        let input_lifetime = self.unique_lifetime("input");
+        for t in generics.type_params_mut() {
+            t.bounds
+                .push(parse_quote!(::reformation::Reformation<#input_lifetime>))
+        }
+        let (impl_gen, _, _) = generics.split_for_impl();
+        quote! { #impl_gen }
+    }
+
+    fn maybe_generic_static(
+        &self,
+        type_: TokenStream,
+        key: TokenStream,
+        map: TokenStream,
+    ) -> TokenStream {
+        if self.input.generics.type_params().next().is_some() {
+            let (_, ty, _) = self.input.generics.split_for_impl();
+            let turbo = ty.as_turbofish();
+            quote! {
+                {
+                    let re = unsafe{
+                        static mut RE: Option<::reformation::GenericStaticStr<#type_>> = None;
+                        static INIT: std::sync::Once = std::sync::Once::new();
+                        INIT.call_once(||{
+                            RE = Some(::reformation::GenericStaticStr::new());
+                        });
+
+                        &RE.as_ref().unwrap_or_else(|| unreachable!())
+                    };
+                    re.call_once(#key #turbo, #map)
+                }
+            }
+        } else {
+            // No generics, fall back to regular statics for better perfomance
+            let res = quote! {
+                unsafe{
+                    static mut RE: Option<#type_> = None;
+                    static INIT: std::sync::Once = std::sync::Once::new();
+                    INIT.call_once(||{
+                        RE = Some((#map)(&#key()));
+                    });
+                    &RE.as_ref().unwrap_or_else(|| unreachable!())
+                }
+            };
+            res
+        }
     }
 
     fn enum_format_str(items: &[Item]) -> String {
@@ -343,20 +399,29 @@ impl<'a> DeriveInput<'a> {
 
     fn parse_quote(&self) -> TokenStream {
         let ident = &self.input.ident;
-        let name = quote! { #ident };
+        let (_, ty_gen, _) = self.input.generics.split_for_impl();
+        let name = quote! { #ident #ty_gen};
         let input_lifetime = self.unique_lifetime("input");
+
+        let gen = self.generic_type_params();
+        let static_ = self.maybe_generic_static(
+            quote! {::reformation::Regex},
+            quote! {create_regex},
+            quote! {|x: &str| ::reformation::Regex::new(x).unwrap()},
+        );
+        let static_ = quote! {
+            {
+                fn create_regex #gen () -> String {
+                    format!(r"\A{}\z", <#name as ::reformation::Reformation>::regex_str())
+                }
+                #static_
+            }
+        };
+
         quote! {
             fn parse(string: &#input_lifetime str) -> Result<Self, ::reformation::Error>{
                 use ::reformation::{Regex, Captures, Error};
-                let re = unsafe{
-                    static mut RE: Option<Regex> = None;
-                    static mut INIT: std::sync::Once = std::sync::Once::new();
-                    INIT.call_once(|| {
-                        let s = format!(r"\A{}\z", <#name as ::reformation::Reformation>::regex_str());
-                        RE = Some(Regex::new(&s).unwrap());
-                    });
-                    &RE.as_ref().unwrap_or_else(|| unreachable!())
-                };
+                let re = #static_;
                 let mut loc = re.capture_locations();
                 if let Some(_) = re.captures_read(&mut loc, string){
                     let captures = Captures::new(&loc, string);
@@ -448,8 +513,7 @@ impl<'a> Item<'a> {
 }
 
 fn format_from_attribute(attr: &ReformationAttribute) -> syn::Result<Format> {
-    let mut format = Format::build(&attr.regex()?)
-        .map_err(|e| syn::Error::new(attr.span, e))?;
+    let mut format = Format::build(&attr.regex()?).map_err(|e| syn::Error::new(attr.span, e))?;
     format.map_substrings(attr.substr_mode());
     Ok(format)
 }

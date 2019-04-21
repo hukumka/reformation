@@ -200,6 +200,8 @@
 #[macro_use]
 extern crate derive_more;
 
+use std::collections::HashMap;
+use std::sync::{RwLock, Once};
 pub use reformation_derive::*;
 pub use regex::{CaptureLocations, Error as RegexError, Regex};
 
@@ -286,6 +288,43 @@ macro_rules! group_impl_parse_primitive{
     };
 }
 
+pub struct GenericStaticStr<T: 'static>{
+    map: RwLock<HashMap<fn() -> String, &'static T>>,
+}
+
+impl<T: 'static> GenericStaticStr<T>{
+    pub fn new() -> Self{
+        Self{
+            map: RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub fn call_once<F: FnOnce(&str) -> T>(&'static self, key: fn() -> String, map: F) -> &'static T{
+        {
+            let read = self.map.read().unwrap();
+            if let Some(v) = read.get(&key) {
+                return v;
+            }
+        }
+        {
+            let mut write = self.map.write().unwrap();
+            // double check that value still was not inserted to avoid
+            // memory leaks. 
+            // Box::leak ing one value per key is completely ok since it is
+            // meant for this value to live as long as program, and then it
+            // would be freed. But if two processes will try to initialize
+            // same key both might be sure in absence of value and leak it twice.
+            if let Some(v) = write.get(&key) {
+                return v;
+            }
+            let value = Box::new(map(&key()));
+            let value = Box::leak(value);
+            write.insert(key, value);
+            value
+        }
+    }
+}
+
 #[derive(Copy, Clone)]
 /// Wrapper to get captures of regular expression
 #[derive(Debug)]
@@ -334,7 +373,21 @@ group_impl_parse_primitive! {r"(.)", char}
 impl<'t, T: Reformation<'t>> Reformation<'t> for Option<T> {
     #[inline]
     fn regex_str() -> &'static str {
-        T::regex_str()
+        fn generate_string<'a, T: Reformation<'a>>() -> String{
+            T::regex_str().to_string() + "?"
+        }
+        let re = unsafe {
+            static mut RE: Option<GenericStaticStr<String>> = None;
+            static INIT: Once = Once::new();
+
+            INIT.call_once(||{
+                RE = Some(GenericStaticStr::new())
+            });
+            RE.as_ref()
+                .unwrap_or_else(|| unreachable!())
+        };
+        re.call_once(generate_string::<T>, |x: &str| x.to_string())
+            .as_str()
     }
 
     #[inline]

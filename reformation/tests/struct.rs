@@ -72,15 +72,25 @@ struct Unit;
 
 #[derive(Reformation, PartialEq, Debug)]
 #[reformation("{a}, {b}")]
-struct InPlace<'a, 'b>{
+struct InPlace<'a, 'b> {
     a: &'a str,
     b: &'b str,
 }
 
+#[derive(Reformation, PartialEq, Debug)]
+#[reformation("{}, {}")]
+struct Generic<T>(T, Option<T>);
+
 #[test]
 fn in_place() {
     let ab = InPlace::parse("wqr, asdfg");
-    assert_eq!(ab, Ok(InPlace{a: "wqr", b: "asdfg"}))
+    assert_eq!(
+        ab,
+        Ok(InPlace {
+            a: "wqr",
+            b: "asdfg"
+        })
+    )
 }
 
 #[test]
@@ -89,4 +99,18 @@ fn test_unit() {
     assert_eq!(u, Ok(Unit));
     let u = Unit::parse("u");
     assert!(u.is_err());
+}
+
+#[test]
+fn test_generic() {
+    let a = Generic::<i32>::parse("12, ");
+    assert_eq!(a, Ok(Generic::<i32>(12, None)));
+    let a = Generic::<String>::parse("stringoo, strongo");
+    assert_eq!(
+        a,
+        Ok(Generic::<String>(
+            "stringoo".to_string(),
+            Some("strongo".to_string())
+        ))
+    );
 }

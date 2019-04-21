@@ -4,6 +4,7 @@
     add support for multiple lifetimes for 
     in place parsing.
 + Remove lazy_static public dependancy
++ Add base for generics support
 
 ### 0.4.1
 + Fix bug with enums not being put into group
