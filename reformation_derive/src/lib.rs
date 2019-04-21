@@ -448,7 +448,8 @@ impl<'a> Item<'a> {
 }
 
 fn format_from_attribute(attr: &ReformationAttribute) -> syn::Result<Format> {
-    let mut format = Format::build(&attr.regex()?).unwrap();
+    let mut format = Format::build(&attr.regex()?)
+        .map_err(|e| syn::Error::new(attr.span, e))?;
     format.map_substrings(attr.substr_mode());
     Ok(format)
 }

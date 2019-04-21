@@ -2,12 +2,12 @@ use reformation::Reformation;
 
 // Should not compile without reformation attribute
 #[derive(Reformation)]
-struct A {}
+struct A; 
 
 // Should not compile, since format string is not correct regular expression
 #[derive(Reformation)]
 #[reformation("(")]
-struct B {}
+struct B;
 
 // Format string does not cover fields, which does not present in struct
 #[derive(Reformation)]
@@ -56,6 +56,13 @@ enum J {
 #[derive(Reformation)]
 #[reformation("{a}")]
 struct K {
+    #[reformation("(")]
+    a: usize,
+}
+
+#[derive(Reformation)]
+#[reformation("{")]
+struct L {
     #[reformation("(")]
     a: usize,
 }

@@ -5,4 +5,4 @@ authors = ["hukumka <hukumka212@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-reformation = {path="../"}
+reformation = {path="../reformation"}
