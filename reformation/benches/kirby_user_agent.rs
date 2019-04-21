@@ -211,12 +211,14 @@ pub fn parse(a: &str) -> Option<UserAgent> {
 fn reformation_parse(inputs: &Vec<&str>) {
     for i in inputs {
         let r = parse_re(*i).unwrap();
+        criterion::black_box(r);
     }
 }
 
 fn kirby_parse(inputs: &Vec<&str>) {
     for i in inputs {
         let r = parse(i).unwrap();
+        criterion::black_box(r);
     }
 }
 
