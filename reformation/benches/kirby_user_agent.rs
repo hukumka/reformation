@@ -50,45 +50,44 @@ fn parse_re(s: &str) -> Option<UserAgent> {
      [a-f0-9]{{16}}( Gemstash/{gemstash})?\
      "
 )]
-struct UserAgent1<'input> {
-    // 'input - special lifetime name corresponding to lifetime of input string
-    bundler: Version<'input>,
-    rubygems: Version<'input>,
-    ruby: Version<'input>,
+struct UserAgent1<'a> {
+    bundler: Version<'a>,
+    rubygems: Version<'a>,
+    ruby: Version<'a>,
 
     #[reformation(r"[^)]*")] // use regex ([^)]*) to parse platform field instead of standard one.
-    platform: &'input str,
+    platform: &'a str,
 
-    command: &'input str,
-    jruby: Option<Version<'input>>,
-    truffleruby: Option<Version<'input>>,
-    options: Option<&'input str>,
-    ci: Option<&'input str>,
-    gemstash: Option<Version<'input>>,
+    command: &'a str,
+    jruby: Option<Version<'a>>,
+    truffleruby: Option<Version<'a>>,
+    options: Option<&'a str>,
+    ci: Option<&'a str>,
+    gemstash: Option<Version<'a>>,
 }
 
 #[derive(Reformation)]
 #[reformation(r"(Ruby, )?RubyGems/{rubygems} {platform} Ruby/{ruby} \(.*?\)( jruby| truffleruby| rbx)?( Gemstash/{gemstash})?")]
-struct UserAgent2<'input> {
-    rubygems: Version<'input>,
-    ruby: Version<'input>,
+struct UserAgent2<'a> {
+    rubygems: Version<'a>,
+    ruby: Version<'a>,
     #[reformation(".*")]
     // only to produce identical regex as kirby. Removing it actually result in slight performance improvement
-    platform: &'input str,
-    gemstash: Option<Version<'input>>,
+    platform: &'a str,
+    gemstash: Option<Version<'a>>,
 }
 
 #[derive(Reformation)]
 #[reformation(r"Ruby, Gems {rubygems}")]
-struct UserAgent3<'input> {
-    rubygems: Version<'input>,
+struct UserAgent3<'a> {
+    rubygems: Version<'a>,
 }
 
 // Instead of repeating such regex as attribute for each field, I decided to
 // specify it via type
 #[derive(Reformation)]
 #[reformation("{}")]
-struct Version<'input>(#[reformation(r"[0-9a-zA-Z.\-]+")] &'input str);
+struct Version<'a>(#[reformation(r"[0-9a-zA-Z.\-]+")] &'a str);
 
 // Original
 
