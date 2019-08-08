@@ -201,9 +201,10 @@
 extern crate derive_more;
 
 use std::collections::HashMap;
-use std::sync::{RwLock, Once};
+use std::sync::RwLock;
 pub use reformation_derive::*;
 pub use regex::{CaptureLocations, Error as RegexError, Regex};
+pub use once_cell::sync::OnceCell;
 
 pub trait Reformation<'t>: Sized {
     /// regular expression for matching this struct
@@ -376,16 +377,10 @@ impl<'t, T: Reformation<'t>> Reformation<'t> for Option<T> {
         fn generate_string<'a, T: Reformation<'a>>() -> String{
             T::regex_str().to_string() + "?"
         }
-        let re = unsafe {
-            static mut RE: Option<GenericStaticStr<String>> = None;
-            static INIT: Once = Once::new();
-
-            INIT.call_once(||{
-                RE = Some(GenericStaticStr::new())
-            });
-            RE.as_ref()
-                .unwrap_or_else(|| unreachable!())
-        };
+        static RE: OnceCell<GenericStaticStr<String>> = OnceCell::new();
+        let re = RE.get_or_init(||{
+            GenericStaticStr::new()
+        });
         re.call_once(generate_string::<T>, |x: &str| x.to_string())
             .as_str()
     }

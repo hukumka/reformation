@@ -301,31 +301,21 @@ impl<'a> DeriveInput<'a> {
             let turbo = ty.as_turbofish();
             quote! {
                 {
-                    let re = unsafe{
-                        static mut RE: Option<::reformation::GenericStaticStr<#type_>> = None;
-                        static INIT: std::sync::Once = std::sync::Once::new();
-                        INIT.call_once(||{
-                            RE = Some(::reformation::GenericStaticStr::new());
-                        });
-
-                        &RE.as_ref().unwrap_or_else(|| unreachable!())
-                    };
+                    static RE: ::reformation::OnceCell<::reformation::GenericStaticStr<#type_>> = ::reformation::OnceCell::new();
+                    let re = RE.get_or_init(||{
+                        ::reformation::GenericStaticStr::new()
+                    });
                     re.call_once(#key #turbo, #map)
                 }
             }
         } else {
             // No generics, fall back to regular statics for better perfomance
-            let res = quote! {
-                unsafe{
-                    static mut RE: Option<#type_> = None;
-                    static INIT: std::sync::Once = std::sync::Once::new();
-                    INIT.call_once(||{
-                        RE = Some((#map)(&#key()));
-                    });
-                    &RE.as_ref().unwrap_or_else(|| unreachable!())
-                }
-            };
-            res
+            quote! {
+                static RE: ::reformation::OnceCell<#type_> = ::reformation::OnceCell::new();
+                RE.get_or_init(||{
+                    (#map)(&#key())
+                })
+            }
         }
     }
 

@@ -2,7 +2,6 @@
 members = [
     "reformation",
     "reformation_derive",
-    "failing_examples" # For checking generated errors only
 ]
 
 default-members = [

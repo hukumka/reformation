@@ -14,6 +14,7 @@ categories = ["parsing"]
 
 [dependencies]
 # pub
+once_cell = "0.2"
 regex = "1"
 # private
 reformation_derive = {path="../reformation_derive", version="0.4.1"}
