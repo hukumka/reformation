@@ -5,7 +5,7 @@ authors = ["hukumka <hukumka212@gmail.com>"]
 edition = "2018"
 description = "Parsing via regular expressions"
 
-readme = "README.md"
+readme = "../README.md"
 license = "MIT"
 repository = "https://github.com/hukumka/reformation"
 travis-ci = { repository = "hukumka/reformation" }
