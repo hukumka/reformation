@@ -1,9 +1,9 @@
 [package]
 name = "reformation_derive"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["hukumka <hukumka212@gmail.com>"]
 edition = "2018"
-description = "reformation derive cratet "
+description = "reformation derive crate"
 
 license = "MIT"
 repository = "https://github.com/hukumka/reformation"

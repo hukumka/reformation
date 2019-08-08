@@ -1,6 +1,6 @@
 [package]
 name = "reformation"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["hukumka <hukumka212@gmail.com>"]
 edition = "2018"
 description = "Parsing via regular expressions"
@@ -17,7 +17,7 @@ categories = ["parsing"]
 once_cell = "0.2"
 regex = "1"
 # private
-reformation_derive = {path="../reformation_derive", version="0.4.1"}
+reformation_derive = {path="../reformation_derive", version="0.5"}
 derive_more = "0.13.0"
 
 [dev-dependencies]
