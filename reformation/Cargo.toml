@@ -8,9 +8,11 @@ description = "Parsing via regular expressions"
 readme = "../README.md"
 license = "MIT"
 repository = "https://github.com/hukumka/reformation"
-travis-ci = { repository = "hukumka/reformation" }
 keywords = ["parsing", "regex"]
 categories = ["parsing"]
+
+[badges]
+travis-ci = { repository = "hukumka/reformation" }
 
 [dependencies]
 # pub

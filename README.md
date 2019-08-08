@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/hukumka/reformation.svg?branch=master)](https://travis-ci.org/hukumka/reformation)
+
 # reformation
 
 Parsing via regular expressions using format syntax
