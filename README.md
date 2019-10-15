@@ -4,9 +4,6 @@
 
 Parsing via regular expressions using format syntax
 
-Deriving trait `Reformation` will also implement
-trait `FromStr`, with `Err=Box<Error>`
-
 Derive will require attribute reformation to specify format string,
 which will be treated as format string -> regular expression string
 

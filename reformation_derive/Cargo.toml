@@ -1,6 +1,6 @@
 [package]
 name = "reformation_derive"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["hukumka <hukumka212@gmail.com>"]
 edition = "2018"
 description = "reformation derive crate"
