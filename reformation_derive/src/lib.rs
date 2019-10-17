@@ -455,7 +455,10 @@ impl<'a> Item<'a> {
             return Ok(None);
         }
         let attr = ReformationAttribute::parse(field.span(), &field.attrs)?;
-        Ok(attr.regex_string)
+        let res = attr.regex()
+            .ok()
+            .map(|s| (attr.substr_mode())(s));
+        Ok(res)
     }
 
     fn size_quote(&self) -> TokenStream {

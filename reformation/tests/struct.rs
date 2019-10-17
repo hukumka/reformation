@@ -143,7 +143,7 @@ impl<'a> ParseOverride<'a> for VecWrapper {
 #[test]
 fn test_override() {
     let a = Override::parse("13 1");
-    assert_eq!(r"(.) (\d( \d)*)", Override::regex_str());
+    assert_eq!(r"(.) (\d(?: \d)*)", Override::regex_str());
     if a.is_ok(){
         panic!("{:?}", a)
     }
