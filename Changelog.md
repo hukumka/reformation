@@ -1,4 +1,7 @@
-### 0.5.0
+### 0.5.1
++ Allow enums to have variant which cannot be parsed into
+
+## 0.5.0
 + Remove old enum syntax
 + Remove need for magical lifetime name and 
     add support for multiple lifetimes for 

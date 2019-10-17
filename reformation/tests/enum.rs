@@ -14,6 +14,9 @@ enum B {
     One(u8),
     #[reformation("{}..{}", no_regex = true)]
     Pair(u8, u8),
+
+    // variant that cannot be produced by parse function
+    NeverParsed(Vec<usize>),
 }
 
 #[test]

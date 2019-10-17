@@ -77,14 +77,22 @@ impl<'a> InputData<'a> {
         let variants: syn::Result<Vec<_>> = enum_
             .variants
             .iter()
-            .map(|v| {
-                let new_attrs = ReformationAttribute::parse(v.span(), &v.attrs)?;
+            .filter_map(|v| {
+                if v.attrs.is_empty(){
+                    return None;
+                }
+                let new_attrs = match ReformationAttribute::parse(v.span(), &v.attrs){
+                    Ok(a) => a,
+                    Err(e) => {
+                        return Some(Err(e));
+                    },
+                };
                 let mut attrs = attrs.clone();
                 attrs.regex_string = None;
                 let new_attrs = attrs.combine(&new_attrs);
                 let ident = &v.ident;
                 let name = quote! {#name::#ident};
-                Item::from_fields(name, &new_attrs, &v.fields)
+                Some(Item::from_fields(name, &new_attrs, &v.fields))
             })
             .collect();
         Ok(InputData::Enum(variants?))
