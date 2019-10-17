@@ -1,13 +1,15 @@
-### 0.5.1
-+ Allow enums to have variant which cannot be parsed into
+### 0.6
++ Allow enums to have variant which cannot be parsed into.
++ Make regex override work for types implementing `ParseInPlace` instead of `ReformationPrimitive`,
+    removing latter, as its no longer needed.
 
 ## 0.5.0
-+ Remove old enum syntax
++ Remove old enum syntax.
 + Remove need for magical lifetime name and 
     add support for multiple lifetimes for 
     in place parsing.
-+ Remove lazy_static public dependancy
-+ Add base for generics support
++ Remove lazy_static public dependancy.
++ Add base for generics support.
 
 ### 0.4.1
 + Fix bug with enums not being put into group
