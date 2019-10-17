@@ -169,8 +169,8 @@ pub use once_cell::sync::OnceCell;
 
 /// Declares how object can be parsed from `&'a str`
 /// with possibility of in place parsing
-pub trait ParseInPlace<'t>: Sized {
-    fn parse(input: &'t str) -> Result<Self, Error>;
+pub trait ParseOverride<'t>: Sized {
+    fn parse_override(input: &'t str) -> Result<Self, Error>;
 }
 
 pub trait Reformation<'t>: Sized {
@@ -191,8 +191,8 @@ pub trait Reformation<'t>: Sized {
     fn parse(input: &'t str) -> Result<Self, Error>;
 }
 
-impl<'t, T: Reformation<'t>> ParseInPlace<'t> for T{
-    fn parse(input: &'t str) -> Result<Self, Error>{
+impl<'t, T: Reformation<'t>> ParseOverride<'t> for T{
+    fn parse_override(input: &'t str) -> Result<Self, Error>{
         <Self as Reformation>::parse(input)
     }
 }

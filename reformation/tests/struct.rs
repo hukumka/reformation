@@ -1,8 +1,8 @@
-use reformation::Reformation;
+use reformation::{Reformation, Error, ParseOverride};
 
 #[derive(Debug, Reformation, PartialEq)]
 #[reformation(r"Vec\{{{x}, {y}, {z}\}}", slack = true)]
-struct Vec {
+struct Vect {
     x: f32,
     y: f32,
     z: f32,
@@ -10,8 +10,8 @@ struct Vec {
 
 #[test]
 fn test_vec() {
-    let real = Vec::parse("Vec{1, 2, 3}");
-    let expected = Vec {
+    let real = Vect::parse("Vec{1, 2, 3}");
+    let expected = Vect {
         x: 1.0,
         y: 2.0,
         z: 3.0,
@@ -25,8 +25,8 @@ fn test_vec() {
 #[derive(Debug, Reformation, PartialEq)]
 #[reformation(r"Rect\{{{a}(,|;)\s+{b}\}}")]
 struct Rect {
-    a: Vec,
-    b: Vec,
+    a: Vect,
+    b: Vect,
 
     // Note what zero does not appear in format string, but
     // initialized from `Default` trait implementation
@@ -37,12 +37,12 @@ struct Rect {
 fn test_rect() {
     let real = Rect::parse("Rect{Vec{1, 1, 0}; Vec{-3.e-5,  0.03,3}}");
     let expected = Rect {
-        a: Vec {
+        a: Vect {
             x: 1.0,
             y: 1.0,
             z: 0.0,
         },
-        b: Vec {
+        b: Vect {
             x: -3.0e-5,
             y: 0.03,
             z: 3.0,
@@ -116,17 +116,40 @@ fn test_generic() {
 }
 
 #[derive(Reformation, PartialEq, Debug)]
-#[reformation("{a}")]
+#[reformation("{a} {b}")]
 struct Override{
-    #[reformation(".")]
-    a: i32
+    #[reformation(r".")]
+    a: i32,
+
+    #[reformation(r"\d( \d)*")]
+    b: VecWrapper,
+}
+
+#[derive(Debug, PartialEq)]
+struct VecWrapper(Vec<u32>);
+
+impl<'a> ParseOverride<'a> for VecWrapper {
+    fn parse_override(s: &'a str) -> Result<VecWrapper, Error>{
+        let v: Result<Vec<_>, Error> = s.split_whitespace()
+            .map(|i| {
+                i.parse::<u32>()
+                    .map_err(|e| Error::Other(e.to_string()))
+            })
+            .collect();
+        v.map(|v| VecWrapper(v))
+    }
 }
 
 #[test]
 fn test_override() {
-    let a = Override::parse("13");
-    assert_eq!("(.)", Override::regex_str());
+    let a = Override::parse("13 1");
+    assert_eq!(r"(.) (\d( \d)*)", Override::regex_str());
     if a.is_ok(){
         panic!("{:?}", a)
     }
+    let b = Override::parse("1 2 3 9 0");
+    assert_eq!(b, Ok(Override{
+        a: 1,
+        b: VecWrapper(vec![2, 3, 9, 0])
+    }));
 }

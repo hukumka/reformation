@@ -473,7 +473,11 @@ impl<'a> Item<'a> {
     fn captures_count<'b>(&'b self) -> impl Iterator<Item = TokenStream> + 'b {
         self.fields.iter().map(|f| {
             let ty = &f.ty;
-            quote! {<#ty as ::reformation::Reformation>::captures_count()}
+            if Item::field_regex_override(f).unwrap().is_some() {
+                quote! {1}
+            }else{
+                quote! {<#ty as ::reformation::Reformation>::captures_count()}
+            }
         })
     }
 
@@ -500,7 +504,7 @@ impl<'a> Item<'a> {
                         {
                             let str = #captures.get(#counter1)
                                 .ok_or_else(|| ::reformation::Error::DoesNotContainGroup)?;
-                            let x = <#type1 as ::reformation::ParseInPlace>::parse(str)?;
+                            let x = <#type1 as ::reformation::ParseOverride>::parse_override(str)?;
                             #counter2 += 1;
                             x
                         }
