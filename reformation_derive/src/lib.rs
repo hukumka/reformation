@@ -441,24 +441,21 @@ impl<'a> Item<'a> {
     fn substrings<'b>(&'b self) -> impl Iterator<Item = TokenStream> + 'b {
         self.fields.iter().map(|f| {
             let ty = &f.ty;
-            if f.attrs.is_empty(){
-                quote! {<#ty as ::reformation::Reformation>::regex_str()}
-            }else{
-                let attr = ReformationAttribute::parse(f.span(), &f.attrs);
-                let attr = match attr{
-                    Ok(a) => a,
-                    Err(e) => {
-                        let err = e.to_compile_error();
-                        return quote! { #err };
-                    }
-                };
-                if let Some(regex) = attr.regex_string{
-                    quote! { format!("({})", #regex) }
-                }else{
-                    quote! {<#ty as ::reformation::Reformation>::regex_str()}
-                }
+            let r = Self::field_regex_override(f);
+            match r{
+                Ok(Some(regex)) => quote! { format!("({})", #regex) },
+                Ok(None) => quote! {<#ty as ::reformation::Reformation>::regex_str()},
+                Err(e) => e.to_compile_error(),
             }
         })
+    }
+
+    fn field_regex_override(field: &syn::Field) -> syn::Result<Option<String>>{
+        if field.attrs.is_empty(){
+            return Ok(None);
+        }
+        let attr = ReformationAttribute::parse(field.span(), &field.attrs)?;
+        Ok(attr.regex_string)
     }
 
     fn size_quote(&self) -> TokenStream {
@@ -491,11 +488,33 @@ impl<'a> Item<'a> {
                 Ok(#constr)
             };
         }
-        let types = self.fields.iter().map(|f| &f.ty);
-        let types2 = self.fields.iter().map(|f| &f.ty);
-        let counter1 = (0..).map(|_| counter);
-        let counter2 = (0..).map(|_| counter);
-        let captures = (0..).map(|_| captures);
+
+        let item_from_captures = self.fields.iter()
+            .map(|f|{
+                let type1 = &f.ty;
+                let type2 = &f.ty;
+                let counter1 = &counter;
+                let counter2 = &counter;
+                if Item::field_regex_override(f).unwrap().is_some(){
+                    quote! {
+                        {
+                            let str = #captures.get(#counter1)
+                                .ok_or_else(|| ::reformation::Error::DoesNotContainGroup)?;
+                            let x = <#type1 as ::reformation::ParseInPlace>::parse(str)?;
+                            #counter2 += 1;
+                            x
+                        }
+                    }
+                }else{
+                    quote! {
+                        {
+                            let x = <#type1 as ::reformation::Reformation>::from_captures(#captures, #counter1)?;
+                            #counter2 += <#type2 as ::reformation::Reformation>::captures_count();
+                            x
+                        }
+                    }
+                }
+            });
 
         let defaults = self.defaults.iter().map(|x| &x.ident);
         if self.fields[0].ident.is_some() {
@@ -503,11 +522,7 @@ impl<'a> Item<'a> {
             quote! {
                 Ok(#constr{
                     #(
-                        #names: {
-                            let x = <#types as ::reformation::Reformation>::from_captures(#captures, #counter1)?;
-                            #counter2 += <#types2 as ::reformation::Reformation>::captures_count();
-                            x
-                        },
+                        #names: #item_from_captures,
                     )*
                     #(#defaults: Default::default())*
                 })
@@ -515,11 +530,7 @@ impl<'a> Item<'a> {
         } else {
             quote! {
                 Ok(#constr( #(
-                    {
-                        let x = <#types as ::reformation::Reformation>::from_captures(#captures, #counter1)?;
-                        #counter2 += <#types2 as ::reformation::Reformation>::captures_count();
-                        x
-                    },
+                    #item_from_captures,
                 )* ))
             }
         }
