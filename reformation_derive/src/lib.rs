@@ -441,7 +441,23 @@ impl<'a> Item<'a> {
     fn substrings<'b>(&'b self) -> impl Iterator<Item = TokenStream> + 'b {
         self.fields.iter().map(|f| {
             let ty = &f.ty;
-            quote! {<#ty as ::reformation::Reformation>::regex_str()}
+            if f.attrs.is_empty(){
+                quote! {<#ty as ::reformation::Reformation>::regex_str()}
+            }else{
+                let attr = ReformationAttribute::parse(f.span(), &f.attrs);
+                let attr = match attr{
+                    Ok(a) => a,
+                    Err(e) => {
+                        let err = e.to_compile_error();
+                        return quote! { #err };
+                    }
+                };
+                if let Some(regex) = attr.regex_string{
+                    quote! { format!("({})", #regex) }
+                }else{
+                    quote! {<#ty as ::reformation::Reformation>::regex_str()}
+                }
+            }
         })
     }
 

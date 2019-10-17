@@ -99,6 +99,7 @@
 //! fn main(){
 //!     // Then parsed from &'x str value will have type
 //!     // InPlace<'x, 'x>
+//!     println!("{}", InPlace::regex_str());
 //!     let inplace = InPlace::parse("aval bval").unwrap();
 //!     assert_eq!(inplace, InPlace{a: "aval", b: "bval"})
 //! }
@@ -166,6 +167,12 @@ pub use reformation_derive::*;
 pub use regex::{CaptureLocations, Error as RegexError, Regex};
 pub use once_cell::sync::OnceCell;
 
+/// Declares how object can be parsed from `&'a str`
+/// with possibility of in place parsing
+pub trait ParseInPlace<'t>: Sized {
+    fn parse(input: &'t str) -> Result<Self, Error>;
+}
+
 pub trait Reformation<'t>: Sized {
     /// regular expression for matching this struct
     fn regex_str() -> &'static str;
@@ -184,33 +191,11 @@ pub trait Reformation<'t>: Sized {
     fn parse(input: &'t str) -> Result<Self, Error>;
 }
 
-/// Marker trait allowing user to override inner regex of type via attribute
-///
-/// ```
-/// use reformation::Reformation;
-///
-/// #[derive(Reformation)]
-/// #[reformation("{}")]
-/// struct A<'a>(
-///     // #[reformation("[a-z_]+")] // now A will match every lowercase set of words, separated with underscores
-///     &'a str
-/// );
-///
-/// #[derive(Reformation)]
-/// #[reformation("{}")]
-/// struct B<'a>(
-///     // #[reformation("whatever")] // not allowed, because A does not implement ```ReformationPrimitive```
-///     A<'a>
-/// );
-///
-/// fn main(){
-///     let a = A::parse("one_more__").unwrap();
-///     assert_eq!(a.0, "one_more__");
-/// }
-/// ```
-pub trait ReformationPrimitive {}
-
-pub fn assert_primitive<T: ReformationPrimitive>() {}
+impl<'t, T: Reformation<'t>> ParseInPlace<'t> for T{
+    fn parse(input: &'t str) -> Result<Self, Error>{
+        <Self as Reformation>::parse(input)
+    }
+}
 
 macro_rules! group_impl_parse_primitive{
     ($re: expr, $($name: ty),*) => {
@@ -244,8 +229,6 @@ macro_rules! group_impl_parse_primitive{
                 Ok(res)
             }
         }
-
-        impl ReformationPrimitive for $name{}
     };
 }
 
@@ -369,8 +352,6 @@ impl<'t, T: Reformation<'t>> Reformation<'t> for Option<T> {
     }
 }
 
-impl<T> ReformationPrimitive for Option<T> {}
-
 impl<'t> Reformation<'t> for &'t str {
     #[inline]
     fn regex_str() -> &'static str {
@@ -395,7 +376,6 @@ impl<'t> Reformation<'t> for &'t str {
         Ok(input)
     }
 }
-impl<'a> ReformationPrimitive for &'a str {}
 
 #[cfg(test)]
 mod tests {

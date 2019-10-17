@@ -114,3 +114,19 @@ fn test_generic() {
         ))
     );
 }
+
+#[derive(Reformation, PartialEq, Debug)]
+#[reformation("{a}")]
+struct Override{
+    #[reformation("1")]
+    a: i32
+}
+
+#[test]
+fn test_override() {
+    let a = Override::parse("13");
+    println!("{}", Override::regex_str());
+    if a.is_ok(){
+        panic!("{:?}", a)
+    }
+}
