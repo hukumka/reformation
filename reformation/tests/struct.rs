@@ -153,3 +153,25 @@ fn test_override() {
         b: VecWrapper(vec![2, 3, 9, 0])
     }));
 }
+
+#[derive(Reformation, Debug, PartialEq)]
+#[reformation("{a}: {c}")]
+struct ManyDefaults{
+    a: i32,
+    b: i32,
+    c: i32,
+    d: i32,
+    e: i32,
+}
+
+#[test]
+fn test_default() {
+    let x = ManyDefaults::parse("1: 2").unwrap();
+    assert_eq!(x, ManyDefaults{
+        a: 1,
+        b: 0,
+        c: 2,
+        d: 0,
+        e: 0,
+    })
+}

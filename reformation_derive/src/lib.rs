@@ -531,7 +531,7 @@ impl<'a> Item<'a> {
                     #(
                         #names: #item_from_captures,
                     )*
-                    #(#defaults: Default::default())*
+                    #(#defaults: Default::default(),)*
                 })
             }
         } else {

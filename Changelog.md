@@ -2,6 +2,7 @@
 + Allow enums to have variant which cannot be parsed into.
 + Make regex override work for types implementing `ParseOverride` instead of `ReformationPrimitive`,
     removing latter, as its no longer needed.
++ Fixed buf with default not handled correctly
 
 ## 0.5.0
 + Remove old enum syntax.
