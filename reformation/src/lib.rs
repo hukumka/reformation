@@ -324,7 +324,7 @@ impl<'t, T: Reformation<'t>> Reformation<'t> for Option<T> {
             T::regex_str().to_string() + "?"
         }
         static RE: OnceCell<GenericStaticStr<String>> = OnceCell::new();
-        let re = RE.get_or_init(|| GenericStaticStr::new());
+        let re = RE.get_or_init(GenericStaticStr::new);
         re.call_once(generate_string::<T>, |x: &str| x.to_string())
             .as_str()
     }
@@ -337,7 +337,7 @@ impl<'t, T: Reformation<'t>> Reformation<'t> for Option<T> {
     #[inline]
     fn from_captures<'a>(captures: &Captures<'a, 't>, offset: usize) -> Result<Self, Error> {
         if captures.get(offset).is_some() {
-            T::from_captures(captures, offset).map(|x| Some(x))
+            T::from_captures(captures, offset).map(Some)
         } else {
             Ok(None)
         }

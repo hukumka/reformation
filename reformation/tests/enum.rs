@@ -38,3 +38,19 @@ fn test_enum_separation() -> Result<(), reformation::Error> {
     assert_eq!(b, B::Pair(1, 88));
     Ok(())
 }
+
+#[derive(Reformation)]
+#[reformation(no_regex=true)]
+enum LifetimeInEnum<'a>{
+    #[reformation("A")]
+    A,
+    #[reformation("B({})")]
+    B(usize),
+    #[reformation("C({})")]
+    C(&'a str),
+    #[reformation("D({value})")]
+    D {
+        value: &'a str
+    },
+}
+

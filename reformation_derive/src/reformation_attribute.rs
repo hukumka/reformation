@@ -74,7 +74,7 @@ impl ReformationAttribute {
     }
 
     fn find_attribute(attrs: &[Attribute]) -> Option<&Attribute> {
-        attrs.into_iter().find(|a| is_reformation_attr(a))
+        attrs.iter().find(|a| is_reformation_attr(a))
     }
 
     pub fn regex(&self) -> syn::Result<&str> {

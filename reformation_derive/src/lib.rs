@@ -55,7 +55,7 @@ impl<'a> InputData<'a> {
         let (_, ty_gen, _) = derive_input.generics.split_for_impl();
         let ident = &derive_input.ident;
         let name_ty = ty_gen.as_turbofish();
-        let name = quote! { #ident #name_ty };
+        let name = quote! { #ident };
         match derive_input.data {
             syn::Data::Struct(ref s) => {
                 let item = Item::from_fields(name, &attr, &s.fields)?;
@@ -206,7 +206,7 @@ impl<'a> DeriveInput<'a> {
             .lifetimes()
             .map(|x| x.lifetime.ident.to_string())
             .max()
-            .unwrap_or(String::new());
+            .unwrap_or_default();
 
         let total = format!("'{}_{}", last, syffix);
         syn::Lifetime::new(&total, Span::call_site())
@@ -236,7 +236,7 @@ impl<'a> DeriveInput<'a> {
         let from_captures = self.impl_from_captures_quote();
         let parse = self.parse_quote();
 
-        quote! {
+        let res = quote! {
             #[allow(clippy::eval_order_dependence)]
             impl #impl_gen ::reformation::Reformation<#input_lifetime> for #ident #type_gen #where_clause{
                 #regex_str
@@ -244,7 +244,8 @@ impl<'a> DeriveInput<'a> {
                 #from_captures
                 #parse
             }
-        }
+        };
+        res
     }
 
     fn regex_str_quote(&self) -> TokenStream {
