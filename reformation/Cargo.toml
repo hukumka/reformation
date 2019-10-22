@@ -16,15 +16,15 @@ travis-ci = { repository = "hukumka/reformation" }
 
 [dependencies]
 # pub
-once_cell = "0.2"
-regex = "1"
+once_cell = "1.2"
+regex = "1.3"
 # private
 reformation_derive = {path="../reformation_derive", version="0.5.1"}
-derive_more = "0.13.0"
+derive_more = "0.15"
 
 [dev-dependencies]
-criterion = "0.2.7"
-lazy_static = "1.1"
+criterion = "0.3"
+lazy_static = "1.4"
 
 [[bench]]
 name = "kirby_user_agent"

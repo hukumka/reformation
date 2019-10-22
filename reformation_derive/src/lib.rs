@@ -219,7 +219,7 @@ impl<'a> DeriveInput<'a> {
         // Add lifetime " 'input: 'a + 'b + ... " to impl_gen
         let mut impl_gen = self.input.generics.clone();
         let mut lifetimes = impl_gen.lifetimes();
-        let first = lifetimes.next();
+        let first = lifetimes.next().into_iter();
         let input_lifetime = self.unique_lifetime("input");
         let input = parse_quote!(#input_lifetime #(: #first)* #(+ #lifetimes)* );
         impl_gen.params.push(syn::GenericParam::Lifetime(input));
@@ -285,7 +285,7 @@ impl<'a> DeriveInput<'a> {
     fn generic_type_params(&self) -> TokenStream {
         let mut generics = self.input.generics.clone();
         let mut lifetimes = generics.lifetimes();
-        let first = lifetimes.next();
+        let first = lifetimes.next().into_iter();
         let input_lifetime = self.unique_lifetime("input");
         let input = parse_quote!(#input_lifetime #(: #first)* #(+ #lifetimes)* );
         generics.params.push(syn::GenericParam::Lifetime(input));

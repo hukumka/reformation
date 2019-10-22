@@ -64,7 +64,7 @@ impl ReformationAttribute {
         } else {
             return Ok(Self::new(span));
         };
-        let tts = &attr.tts;
+        let tts = &attr.tokens;
         let stream_str = quote!(#tts).to_string();
         let res: Self = syn::parse_str(&stream_str).map_err(|e| syn::Error::new(span, e))?;
         Ok(res)
