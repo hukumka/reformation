@@ -1,10 +1,10 @@
 use crate::syn_helpers::expr_bool_lit;
+use lazy_static::lazy_static;
 use proc_macro2::Span;
+use regex::Regex;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{AttrStyle, Attribute, Expr, Ident, Lit, WhereClause};
-use lazy_static::lazy_static;
-use regex::Regex;
 
 /// Struct representing attribute `#[reformation(...)]`
 #[derive(Clone)]
@@ -31,8 +31,11 @@ impl ReformationAttribute {
     }
 
     pub fn combine(&self, other: &Self) -> Self {
-        let s = other.regex_string.clone().or_else(|| self.regex_string.clone());
-        Self{
+        let s = other
+            .regex_string
+            .clone()
+            .or_else(|| self.regex_string.clone());
+        Self {
             span: other.span,
             regex_string: s,
             slack: other.slack | self.slack,
@@ -42,16 +45,16 @@ impl ReformationAttribute {
         }
     }
 
-    pub fn substr_mode(&self) -> impl Fn(&str)->String + '_ {
+    pub fn substr_mode(&self) -> impl Fn(&str) -> String + '_ {
         move |s| {
-            let s = if self.no_regex{
+            let s = if self.no_regex {
                 escape_regex(s)
-            }else{
+            } else {
                 no_capturing_groups(s)
             };
-            if self.slack{
+            if self.slack {
                 slack(&s)
-            }else{
+            } else {
                 s
             }
         }
@@ -190,7 +193,6 @@ fn is_reformation_attr(a: &Attribute) -> bool {
     };
     quote!(#pound).to_string() == "#" && style_cmp && quote!(#path).to_string() == "reformation"
 }
-
 
 fn no_capturing_groups(input: &str) -> String {
     let mut prev = None;

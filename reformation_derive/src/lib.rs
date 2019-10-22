@@ -78,14 +78,14 @@ impl<'a> InputData<'a> {
             .variants
             .iter()
             .filter_map(|v| {
-                if v.attrs.is_empty(){
+                if v.attrs.is_empty() {
                     return None;
                 }
-                let new_attrs = match ReformationAttribute::parse(v.span(), &v.attrs){
+                let new_attrs = match ReformationAttribute::parse(v.span(), &v.attrs) {
                     Ok(a) => a,
                     Err(e) => {
                         return Some(Err(e));
-                    },
+                    }
                 };
                 let mut attrs = attrs.clone();
                 attrs.regex_string = None;
@@ -442,7 +442,7 @@ impl<'a> Item<'a> {
         self.fields.iter().map(|f| {
             let ty = &f.ty;
             let r = Self::field_regex_override(f);
-            match r{
+            match r {
                 Ok(Some(regex)) => quote! { format!("({})", #regex) },
                 Ok(None) => quote! {<#ty as ::reformation::Reformation>::regex_str()},
                 Err(e) => e.to_compile_error(),
@@ -450,14 +450,12 @@ impl<'a> Item<'a> {
         })
     }
 
-    fn field_regex_override(field: &syn::Field) -> syn::Result<Option<String>>{
-        if field.attrs.is_empty(){
+    fn field_regex_override(field: &syn::Field) -> syn::Result<Option<String>> {
+        if field.attrs.is_empty() {
             return Ok(None);
         }
         let attr = ReformationAttribute::parse(field.span(), &field.attrs)?;
-        let res = attr.regex()
-            .ok()
-            .map(|s| (attr.substr_mode())(s));
+        let res = attr.regex().ok().map(|s| (attr.substr_mode())(s));
         Ok(res)
     }
 
@@ -478,7 +476,7 @@ impl<'a> Item<'a> {
             let ty = &f.ty;
             if Item::field_regex_override(f).unwrap().is_some() {
                 quote! {1}
-            }else{
+            } else {
                 quote! {<#ty as ::reformation::Reformation>::captures_count()}
             }
         })

@@ -157,15 +157,14 @@
 //! }
 //! ```
 
-
 #[macro_use]
 extern crate derive_more;
 
-use std::collections::HashMap;
-use std::sync::RwLock;
+pub use once_cell::sync::OnceCell;
 pub use reformation_derive::*;
 pub use regex::{CaptureLocations, Error as RegexError, Regex};
-pub use once_cell::sync::OnceCell;
+use std::collections::HashMap;
+use std::sync::RwLock;
 
 /// Declares how object can be parsed from `&'a str`
 /// with possibility of in place parsing
@@ -191,8 +190,8 @@ pub trait Reformation<'t>: Sized {
     fn parse(input: &'t str) -> Result<Self, Error>;
 }
 
-impl<'t, T: Reformation<'t>> ParseOverride<'t> for T{
-    fn parse_override(input: &'t str) -> Result<Self, Error>{
+impl<'t, T: Reformation<'t>> ParseOverride<'t> for T {
+    fn parse_override(input: &'t str) -> Result<Self, Error> {
         <Self as Reformation>::parse(input)
     }
 }
@@ -232,18 +231,22 @@ macro_rules! group_impl_parse_primitive{
     };
 }
 
-pub struct GenericStaticStr<T: 'static>{
+pub struct GenericStaticStr<T: 'static> {
     map: RwLock<HashMap<fn() -> String, &'static T>>,
 }
 
-impl<T: 'static> GenericStaticStr<T>{
-    pub fn new() -> Self{
-        Self{
+impl<T: 'static> GenericStaticStr<T> {
+    pub fn new() -> Self {
+        Self {
             map: RwLock::new(HashMap::new()),
         }
     }
 
-    pub fn call_once<F: FnOnce(&str) -> T>(&'static self, key: fn() -> String, map: F) -> &'static T{
+    pub fn call_once<F: FnOnce(&str) -> T>(
+        &'static self,
+        key: fn() -> String,
+        map: F,
+    ) -> &'static T {
         {
             let read = self.map.read().unwrap();
             if let Some(v) = read.get(&key) {
@@ -253,7 +256,7 @@ impl<T: 'static> GenericStaticStr<T>{
         {
             let mut write = self.map.write().unwrap();
             // double check that value still was not inserted to avoid
-            // memory leaks. 
+            // memory leaks.
             // Box::leak ing one value per key is completely ok since it is
             // meant for this value to live as long as program, and then it
             // would be freed. But if two processes will try to initialize
@@ -317,13 +320,11 @@ group_impl_parse_primitive! {r"(.)", char}
 impl<'t, T: Reformation<'t>> Reformation<'t> for Option<T> {
     #[inline]
     fn regex_str() -> &'static str {
-        fn generate_string<'a, T: Reformation<'a>>() -> String{
+        fn generate_string<'a, T: Reformation<'a>>() -> String {
             T::regex_str().to_string() + "?"
         }
         static RE: OnceCell<GenericStaticStr<String>> = OnceCell::new();
-        let re = RE.get_or_init(||{
-            GenericStaticStr::new()
-        });
+        let re = RE.get_or_init(|| GenericStaticStr::new());
         re.call_once(generate_string::<T>, |x: &str| x.to_string())
             .as_str()
     }

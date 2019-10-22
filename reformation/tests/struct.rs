@@ -1,4 +1,4 @@
-use reformation::{Reformation, Error, ParseOverride};
+use reformation::{Error, ParseOverride, Reformation};
 
 #[derive(Debug, Reformation, PartialEq)]
 #[reformation(r"Vec\{{{x}, {y}, {z}\}}", slack = true)]
@@ -117,7 +117,7 @@ fn test_generic() {
 
 #[derive(Reformation, PartialEq, Debug)]
 #[reformation("{a} {b}")]
-struct Override{
+struct Override {
     #[reformation(r".")]
     a: i32,
 
@@ -129,12 +129,10 @@ struct Override{
 struct VecWrapper(Vec<u32>);
 
 impl<'a> ParseOverride<'a> for VecWrapper {
-    fn parse_override(s: &'a str) -> Result<VecWrapper, Error>{
-        let v: Result<Vec<_>, Error> = s.split_whitespace()
-            .map(|i| {
-                i.parse::<u32>()
-                    .map_err(|e| Error::Other(e.to_string()))
-            })
+    fn parse_override(s: &'a str) -> Result<VecWrapper, Error> {
+        let v: Result<Vec<_>, Error> = s
+            .split_whitespace()
+            .map(|i| i.parse::<u32>().map_err(|e| Error::Other(e.to_string())))
             .collect();
         v.map(|v| VecWrapper(v))
     }
@@ -144,19 +142,22 @@ impl<'a> ParseOverride<'a> for VecWrapper {
 fn test_override() {
     let a = Override::parse("13 1");
     assert_eq!(r"(.) (\d(?: \d)*)", Override::regex_str());
-    if a.is_ok(){
+    if a.is_ok() {
         panic!("{:?}", a)
     }
     let b = Override::parse("1 2 3 9 0");
-    assert_eq!(b, Ok(Override{
-        a: 1,
-        b: VecWrapper(vec![2, 3, 9, 0])
-    }));
+    assert_eq!(
+        b,
+        Ok(Override {
+            a: 1,
+            b: VecWrapper(vec![2, 3, 9, 0])
+        })
+    );
 }
 
 #[derive(Reformation, Debug, PartialEq)]
 #[reformation("{a}: {c}")]
-struct ManyDefaults{
+struct ManyDefaults {
     a: i32,
     b: i32,
     c: i32,
@@ -167,11 +168,14 @@ struct ManyDefaults{
 #[test]
 fn test_default() {
     let x = ManyDefaults::parse("1: 2").unwrap();
-    assert_eq!(x, ManyDefaults{
-        a: 1,
-        b: 0,
-        c: 2,
-        d: 0,
-        e: 0,
-    })
+    assert_eq!(
+        x,
+        ManyDefaults {
+            a: 1,
+            b: 0,
+            c: 2,
+            d: 0,
+            e: 0,
+        }
+    )
 }

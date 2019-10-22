@@ -63,14 +63,11 @@ impl Format {
         }
     }
 
-    pub fn named_arguments<'a>(&'a self) -> impl Iterator<Item=String> + 'a{
-        self
-            .arguments
-            .iter()
-            .filter_map(|a| match a {
-                Argument::Named(s) => Some(s.clone()),
-                _ => None,
-            })
+    pub fn named_arguments<'a>(&'a self) -> impl Iterator<Item = String> + 'a {
+        self.arguments.iter().filter_map(|a| match a {
+            Argument::Named(s) => Some(s.clone()),
+            _ => None,
+        })
     }
 
     pub fn positional_arguments(&self) -> usize {
@@ -82,7 +79,7 @@ impl Format {
             })
             .count()
     }
-    
+
     pub fn linearize(&self) -> String {
         let escape = |s: &str| s.replace("{", "{{").replace("}", "}}");
         let mut res = String::new();
