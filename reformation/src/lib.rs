@@ -157,6 +157,8 @@
 //! }
 //! ```
 
+#![cfg_attr(feature="containers", feature(const_generics))]
+
 #[macro_use]
 extern crate derive_more;
 
@@ -165,6 +167,9 @@ pub use reformation_derive::*;
 pub use regex::{CaptureLocations, Error as RegexError, Regex};
 use std::collections::HashMap;
 use std::sync::RwLock;
+
+#[cfg(feature="containers")]
+pub mod containers;
 
 /// Declares how object can be parsed from `&'a str`
 /// with possibility of in place parsing

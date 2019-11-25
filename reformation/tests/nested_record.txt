@@ -1,0 +1,4 @@
+Apparitions
+Ghost: 1, 2, 3, 4, 5, 6, 7
+Specter: 3, 9
+Lost soul: 0, 334, 21

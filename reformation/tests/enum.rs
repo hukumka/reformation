@@ -48,9 +48,9 @@ enum LifetimeInEnum<'a>{
     B(usize),
     #[reformation("C({})")]
     C(&'a str),
-    #[reformation("D({value})")]
+    #[reformation("D({_value})")]
     D {
-        value: &'a str
+        _value: &'a str
     },
 }
 

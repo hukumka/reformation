@@ -54,7 +54,6 @@ impl<'a> InputData<'a> {
         let attr = ReformationAttribute::parse(derive_input.span(), &derive_input.attrs)?;
         let (_, ty_gen, _) = derive_input.generics.split_for_impl();
         let ident = &derive_input.ident;
-        let name_ty = ty_gen.as_turbofish();
         let name = quote! { #ident };
         match derive_input.data {
             syn::Data::Struct(ref s) => {

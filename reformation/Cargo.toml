@@ -14,13 +14,16 @@ categories = ["parsing"]
 [badges]
 travis-ci = { repository = "hukumka/reformation" }
 
+[features]
+containers = []
+
 [dependencies]
 # pub
 once_cell = "1.2"
 regex = "1.3"
 # private
 reformation_derive = {path="../reformation_derive", version="0.5.1"}
-derive_more = "0.15"
+derive_more = "0.99"
 
 [dev-dependencies]
 criterion = "0.3"
