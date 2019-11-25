@@ -52,7 +52,6 @@ struct Item<'a> {
 impl<'a> InputData<'a> {
     fn new(derive_input: &'a syn::DeriveInput) -> syn::Result<Self> {
         let attr = ReformationAttribute::parse(derive_input.span(), &derive_input.attrs)?;
-        let (_, ty_gen, _) = derive_input.generics.split_for_impl();
         let ident = &derive_input.ident;
         let name = quote! { #ident };
         match derive_input.data {
@@ -77,7 +76,7 @@ impl<'a> InputData<'a> {
             .variants
             .iter()
             .filter_map(|v| {
-                if v.attrs.is_empty() {
+                if ReformationAttribute::find_attribute(&v.attrs).is_none(){
                     return None;
                 }
                 let new_attrs = match ReformationAttribute::parse(v.span(), &v.attrs) {

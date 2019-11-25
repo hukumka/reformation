@@ -16,6 +16,7 @@ enum B {
     Pair(u8, u8),
 
     // variant that cannot be produced by parse function
+    #[allow(dead_code)]
     NeverParsed(Vec<usize>),
 }
 

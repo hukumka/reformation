@@ -73,7 +73,7 @@ impl ReformationAttribute {
         Ok(res)
     }
 
-    fn find_attribute(attrs: &[Attribute]) -> Option<&Attribute> {
+    pub fn find_attribute(attrs: &[Attribute]) -> Option<&Attribute> {
         attrs.iter().find(|a| is_reformation_attr(a))
     }
 
