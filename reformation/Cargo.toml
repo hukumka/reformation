@@ -32,3 +32,7 @@ lazy_static = "1.4"
 [[bench]]
 name = "kirby_user_agent"
 harness = false
+
+[[bench]]
+name = "generic_overhead"
+harness = false
