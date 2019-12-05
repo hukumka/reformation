@@ -4,7 +4,7 @@ use proc_macro2::Span;
 use regex::Regex;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{AttrStyle, Attribute, Expr, Ident, Lit, WhereClause};
+use syn::{AttrStyle, Attribute, Expr, Ident, Lit};
 
 /// Struct representing attribute `#[reformation(...)]`
 #[derive(Clone)]
@@ -14,8 +14,6 @@ pub struct ReformationAttribute {
 
     pub slack: bool,
     pub no_regex: bool,
-    pub alloc_per_thread: bool,
-    pub override_where: Option<Option<WhereClause>>,
 }
 
 impl ReformationAttribute {
@@ -25,8 +23,6 @@ impl ReformationAttribute {
             regex_string: None,
             slack: false,
             no_regex: false,
-            alloc_per_thread: false,
-            override_where: None,
         }
     }
 
@@ -40,8 +36,6 @@ impl ReformationAttribute {
             regex_string: s,
             slack: other.slack | self.slack,
             no_regex: other.no_regex | self.no_regex,
-            alloc_per_thread: false,
-            override_where: None,
         }
     }
 
@@ -101,7 +95,6 @@ impl Parse for ReformationAttribute {
 enum Mode {
     Str(String),
     BoolParam(Ident),
-    WhereClauseParam(Option<WhereClause>),
 }
 
 impl Parse for Mode {
@@ -110,22 +103,9 @@ impl Parse for Mode {
         if lookahead.peek(Ident) {
             let ident: Ident = input.parse()?;
             let _eq: Token![=] = input.parse()?;
-            if ident.to_string() == "override_where" {
-                // #[reformation("blabla", override_where="where T: Clone")]
-                let clause: Lit = input.parse()?;
-                let s = match clause {
-                    Lit::Str(s) => s.value(),
-                    _ => {
-                        return Err(syn::Error::new_spanned(clause, "Expected string literal."));
-                    }
-                };
-                let clause: Option<WhereClause> = syn::parse_str(&s)?;
-                Ok(Mode::WhereClauseParam(clause))
-            } else {
-                let true_: Expr = input.parse()?;
-                expect_true(ident.span(), &ident.to_string(), &true_)?;
-                Ok(Mode::BoolParam(ident))
-            }
+            let true_: Expr = input.parse()?;
+            expect_true(ident.span(), &ident.to_string(), &true_)?;
+            Ok(Mode::BoolParam(ident))
         } else {
             let regex: Lit = input.parse()?;
             match regex {
@@ -148,10 +128,6 @@ impl ReformationAttribute {
                     self.slack = true;
                     Ok(())
                 }
-                "alloc_per_thread" => {
-                    self.alloc_per_thread = true;
-                    Ok(())
-                }
                 _ => Err(syn::Error::new(
                     self.span,
                     format!("Unknown mode: {:?}", &ident.to_string()),
@@ -160,11 +136,7 @@ impl ReformationAttribute {
             Mode::Str(s) => {
                 self.regex_string = Some(s);
                 Ok(())
-            }
-            Mode::WhereClauseParam(clause) => {
-                self.override_where = Some(clause);
-                Ok(())
-            }
+            },
         }
     }
 }

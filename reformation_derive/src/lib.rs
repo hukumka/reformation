@@ -76,9 +76,7 @@ impl<'a> InputData<'a> {
             .variants
             .iter()
             .filter_map(|v| {
-                if ReformationAttribute::find_attribute(&v.attrs).is_none(){
-                    return None;
-                }
+                ReformationAttribute::find_attribute(&v.attrs)?; // Variants with no attribute should be unparseable
                 let new_attrs = match ReformationAttribute::parse(v.span(), &v.attrs) {
                     Ok(a) => a,
                     Err(e) => {
@@ -420,7 +418,7 @@ impl<'a> DeriveInput<'a> {
                 use ::reformation::{Regex, Captures, Error};
                 let re = #static_;
                 let mut loc = re.capture_locations();
-                if let Some(_) = re.captures_read(&mut loc, string){
+                if re.captures_read(&mut loc, string).is_some(){
                     let captures = Captures::new(&loc, string);
                     Self::from_captures(&captures, 1)
                 }else{
