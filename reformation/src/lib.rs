@@ -236,8 +236,16 @@ macro_rules! group_impl_parse_primitive{
     };
 }
 
+type CallMap<T> = HashMap<fn() -> String, &'static T>;
+
 pub struct GenericStaticStr<T: 'static> {
-    map: RwLock<HashMap<fn() -> String, &'static T>>,
+    map: RwLock<CallMap<T>>,
+}
+
+impl<T: 'static> Default for GenericStaticStr<T>{
+    fn default() -> Self{
+        Self::new()
+    }
 }
 
 impl<T: 'static> GenericStaticStr<T> {
