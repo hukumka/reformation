@@ -109,6 +109,12 @@
 //!
 //! Order, in which modes are specified does not matter.
 //!
+//! ### fromstr
+//!
+//! Generate implementation of `FromStr` trait. 
+//!
+//! Not compatible with lifetime annotated structs.
+//!
 //! ### no_regex
 //!
 //! Makes format string behave as regular string (in contrast with being regular expression),
@@ -135,6 +141,7 @@
 //!
 //! Allow arbitrary number of spaces after separators: ',', ';', ':'. For separator to be recognized
 //! as slack, it must be followed by at least one space in format string.
+//!
 //!
 //! ```
 //! use reformation::Reformation;
