@@ -14,6 +14,7 @@ pub struct ReformationAttribute {
 
     pub slack: bool,
     pub no_regex: bool,
+    pub fromstr: bool,
 }
 
 impl ReformationAttribute {
@@ -23,6 +24,7 @@ impl ReformationAttribute {
             regex_string: None,
             slack: false,
             no_regex: false,
+            fromstr: false
         }
     }
 
@@ -34,6 +36,7 @@ impl ReformationAttribute {
         Self {
             span: other.span,
             regex_string: s,
+            fromstr: false, // Only makes sence on top level #TODO
             slack: other.slack | self.slack,
             no_regex: other.no_regex | self.no_regex,
         }
@@ -126,6 +129,10 @@ impl ReformationAttribute {
                 }
                 "slack" => {
                     self.slack = true;
+                    Ok(())
+                }
+                "fromstr" => {
+                    self.fromstr = true;
                     Ok(())
                 }
                 _ => Err(syn::Error::new(

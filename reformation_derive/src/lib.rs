@@ -35,6 +35,7 @@ fn reformation_derive_do(mut ds: syn::DeriveInput) -> syn::Result<TokenStream> {
 struct DeriveInput<'a> {
     input: &'a syn::DeriveInput,
     data: InputData<'a>,
+    attr: ReformationAttribute,
 }
 
 enum InputData<'a> {
@@ -50,22 +51,7 @@ struct Item<'a> {
 }
 
 impl<'a> InputData<'a> {
-    fn new(derive_input: &'a syn::DeriveInput) -> syn::Result<Self> {
-        let attr = ReformationAttribute::parse(derive_input.span(), &derive_input.attrs)?;
-        let ident = &derive_input.ident;
-        let name = quote! { #ident };
-        match derive_input.data {
-            syn::Data::Struct(ref s) => {
-                let item = Item::from_fields(name, &attr, &s.fields)?;
-                Ok(InputData::Struct(item))
-            }
-            syn::Data::Enum(ref e) => Self::new_enum(&name, &attr, &e),
-            syn::Data::Union(_) => Err(syn::Error::new(
-                ident.span(),
-                "Reformation does not support unions",
-            )),
-        }
-    }
+    
 
     fn new_enum(
         name: &TokenStream,
@@ -188,10 +174,28 @@ impl<'a> Item<'a> {
 }
 
 impl<'a> DeriveInput<'a> {
-    fn new(input: &'a mut syn::DeriveInput) -> syn::Result<Self> {
-        Ok(Self {
-            input,
-            data: InputData::new(input)?,
+    fn new(derive_input: &'a syn::DeriveInput) -> syn::Result<DeriveInput<'a>> {
+        let attr = ReformationAttribute::parse(derive_input.span(), &derive_input.attrs)?;
+        let ident = &derive_input.ident;
+        let name = quote! { #ident };
+        if attr.fromstr && derive_input.generics.lifetimes().next().is_some() {
+            return Err(syn::Error::new(ident.span(), "FromStr can only be implemented by `T: 'static` types."))
+        }
+        let data = match derive_input.data {
+            syn::Data::Struct(ref s) => {
+                let item = Item::from_fields(name, &attr, &s.fields)?;
+                Ok(InputData::Struct(item))
+            }
+            syn::Data::Enum(ref e) => InputData::new_enum(&name, &attr, &e),
+            syn::Data::Union(_) => Err(syn::Error::new(
+                ident.span(),
+                "Reformation does not support unions",
+            )),
+        }?;
+        Ok(DeriveInput{
+            data,
+            input: derive_input,
+            attr
         })
     }
 
@@ -232,6 +236,12 @@ impl<'a> DeriveInput<'a> {
         let from_captures = self.impl_from_captures_quote();
         let parse = self.parse_quote();
 
+        let fromstr = if self.attr.fromstr {
+            self.fromstr_quote()
+        } else {
+            quote! {}
+        };
+
         let res = quote! {
             #[allow(clippy::eval_order_dependence)]
             impl #impl_gen ::reformation::Reformation<#input_lifetime> for #ident #type_gen #where_clause{
@@ -240,8 +250,24 @@ impl<'a> DeriveInput<'a> {
                 #from_captures
                 #parse
             }
+
+            #fromstr
         };
         res
+    }
+
+    fn fromstr_quote(&self) -> TokenStream {
+        let ident = &self.input.ident;
+        let (impl_gen, type_gen, where_clause) = self.input.generics.split_for_impl();
+
+        quote! {
+            impl #impl_gen std::str::FromStr for #ident #type_gen #where_clause {
+                type Err = ::reformation::Error;
+                fn from_str(s: &str) -> Result<Self, Self::Err> {
+                    Self::parse(s)
+                }
+            }
+        }
     }
 
     fn regex_str_quote(&self) -> TokenStream {
@@ -432,6 +458,7 @@ impl<'a> DeriveInput<'a> {
             }
         }
     }
+
 }
 
 impl<'a> Item<'a> {

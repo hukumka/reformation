@@ -179,3 +179,13 @@ fn test_default() {
         }
     )
 }
+
+#[derive(Reformation, Debug, PartialEq)]
+#[reformation("{}:{}:{}", fromstr=true)]
+struct Time(i32, i32, i32);
+
+#[test]
+fn test_fromstr() {
+    let x: Time = "1:2:3".parse().unwrap();
+    assert_eq!(x, Time(1, 2, 3));
+}
