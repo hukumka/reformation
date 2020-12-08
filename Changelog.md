@@ -1,4 +1,10 @@
-## 0.6.0
+### 0.5.3
++ Implement `Error` trait for `reformation::Error`. (credit: nertpinx)
+
+### 0.5.2
++ Add `fromstr` mode to implement `FromStr` trait for struct.
+
+### 0.5.1
 + Allow enums to have variant which cannot be parsed into.
 + Make regex override work for types implementing `ParseOverride` instead of `ReformationPrimitive`,
     removing latter, as its no longer needed.
