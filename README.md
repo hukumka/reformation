@@ -118,6 +118,32 @@ Generate implementation of `FromStr` trait.
 
 Not compatible with lifetime annotated structs.
 
+```rust
+use reformation::Reformation;
+
+#[derive(Reformation, Debug)]
+#[reformation(r"{year}-{month}-{day} {hour}:{minute}", fromstr = true)]
+struct Date{
+    year: u16,
+    month: u8,
+    day: u8,
+    hour: u8,
+    minute: u8,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let date: Date = "2018-12-22 20:23".parse()?;
+
+    assert_eq!(date.year, 2018);
+    assert_eq!(date.month, 12);
+    assert_eq!(date.day, 22);
+    assert_eq!(date.hour, 20);
+    assert_eq!(date.minute, 23);
+
+    Ok(())
+}
+```
+
 #### no_regex
 
 Makes format string behave as regular string (in contrast with being regular expression),
