@@ -63,9 +63,9 @@
 //!
 //! #[derive(Reformation, Eq, PartialEq, Debug)]
 //! enum Ant{
-//!     #[reformation(r"Queen\({}\)")]
+//!     #[reformation(r"Queen({})")]
 //!     Queen(String),
-//!     #[reformation(r"Worker\({}\)")]
+//!     #[reformation(r"Worker({})")]
 //!     Worker(i32),
 //!     #[reformation(r"Warrior")]
 //!     Warrior
@@ -90,9 +90,9 @@
 //! #[derive(Reformation, Eq, PartialEq, Debug)]
 //! #[reformation("{a} {b}")]
 //! struct InPlace<'a, 'b>{
-//!     #[reformation("[a-z]*")]
+//!     #[reformation("[a-z]*", regex=true)]
 //!     a: &'a str,
-//!     #[reformation("[a-z]*")]
+//!     #[reformation("[a-z]*", regex=true)]
 //!     b: &'b str,
 //! }
 //!
@@ -111,7 +111,7 @@
 //!
 //! ### fromstr
 //!
-//! Generate implementation of `FromStr` trait. 
+//! Generate implementation of `FromStr` trait.
 //!
 //! Not compatible with lifetime annotated structs.
 //!
@@ -141,23 +141,23 @@
 //! }
 //! ```
 //!
-//! ### no_regex
+//! ### regex
 //!
-//! Makes format string behave as regular string (in contrast with being regular expression),
-//! by escaping all special regex characters.
+//! Makes format string behave as regular expression
+//! by turning off escaping of all special regex characters.
 //!
 //! ```
 //! use reformation::Reformation;
 //!
 //! #[derive(Reformation, Debug)]
-//! #[reformation("Vec{{{x}, {y}}}", no_regex=true)]
+//! #[reformation(r"Vec\{{{x}, *{y}\}}", regex=true)]
 //! struct Vec{
 //!     x: i32,
 //!     y: i32,
 //! }
 //!
 //! fn main(){
-//!     let v= Vec::parse("Vec{-1, 1}").unwrap();
+//!     let v = Vec::parse("Vec{-1,    1}").unwrap();
 //!     assert_eq!(v.x, -1);
 //!     assert_eq!(v.y, 1);
 //! }
@@ -173,7 +173,7 @@
 //! use reformation::Reformation;
 //!
 //! #[derive(Reformation, Debug)]
-//! #[reformation(r"Vec\{{{x}, {y}\}}", slack=true)]
+//! #[reformation(r"Vec{{{x}, {y}}}", slack=true)]
 //! struct Vec{
 //!     x: i32,
 //!     y: i32,
@@ -190,7 +190,7 @@
 //! }
 //! ```
 
-#![cfg_attr(feature="containers", feature(const_generics))]
+#![cfg_attr(feature = "containers", feature(const_generics))]
 
 #[macro_use]
 extern crate derive_more;
@@ -201,7 +201,7 @@ pub use regex::{CaptureLocations, Error as RegexError, Regex};
 use std::collections::HashMap;
 use std::sync::RwLock;
 
-#[cfg(feature="containers")]
+#[cfg(feature = "containers")]
 pub mod containers;
 
 /// Declares how object can be parsed from `&'a str`
@@ -275,8 +275,8 @@ pub struct GenericStaticStr<T: 'static> {
     map: RwLock<CallMap<T>>,
 }
 
-impl<T: 'static> Default for GenericStaticStr<T>{
-    fn default() -> Self{
+impl<T: 'static> Default for GenericStaticStr<T> {
+    fn default() -> Self {
         Self::new()
     }
 }

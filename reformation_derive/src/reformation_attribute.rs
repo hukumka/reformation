@@ -13,7 +13,7 @@ pub struct ReformationAttribute {
     pub regex_string: Option<String>,
 
     pub slack: bool,
-    pub no_regex: bool,
+    pub regex: bool,
     pub fromstr: bool,
 }
 
@@ -23,7 +23,7 @@ impl ReformationAttribute {
             span,
             regex_string: None,
             slack: false,
-            no_regex: false,
+            regex: false,
             fromstr: false,
         }
     }
@@ -38,16 +38,16 @@ impl ReformationAttribute {
             regex_string: s,
             fromstr: false, // Only makes sence on top level #TODO
             slack: other.slack | self.slack,
-            no_regex: other.no_regex | self.no_regex,
+            regex: other.regex | self.regex,
         }
     }
 
     pub fn substr_mode(&self) -> impl Fn(&str) -> String + '_ {
         move |s| {
-            let s = if self.no_regex {
-                escape(s)
-            } else {
+            let s = if self.regex {
                 no_capturing_groups(s)
+            } else {
+                escape(s)
             };
             if self.slack {
                 slack(&s)
@@ -123,8 +123,8 @@ impl ReformationAttribute {
     fn apply(&mut self, mode: Mode) -> syn::Result<()> {
         match mode {
             Mode::BoolParam(ident) => match ident.to_string().as_str() {
-                "no_regex" => {
-                    self.no_regex = true;
+                "regex" => {
+                    self.regex = true;
                     Ok(())
                 }
                 "slack" => {

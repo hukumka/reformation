@@ -67,9 +67,9 @@ use reformation::Reformation;
 
 #[derive(Reformation, Eq, PartialEq, Debug)]
 enum Ant{
-    #[reformation(r"Queen\({}\)")]
+    #[reformation(r"Queen({})")]
     Queen(String),
-    #[reformation(r"Worker\({}\)")]
+    #[reformation(r"Worker({})")]
     Worker(i32),
     #[reformation(r"Warrior")]
     Warrior
@@ -94,15 +94,16 @@ use reformation::Reformation;
 #[derive(Reformation, Eq, PartialEq, Debug)]
 #[reformation("{a} {b}")]
 struct InPlace<'a, 'b>{
-    #[reformation("[a-z]*")]
+    #[reformation("[a-z]*", regex=true)]
     a: &'a str,
-    #[reformation("[a-z]*")]
+    #[reformation("[a-z]*", regex=true)]
     b: &'b str,
 }
 
 fn main(){
     // Then parsed from &'x str value will have type
     // InPlace<'x, 'x>
+    println!("{}", InPlace::regex_str());
     let inplace = InPlace::parse("aval bval").unwrap();
     assert_eq!(inplace, InPlace{a: "aval", b: "bval"})
 }
@@ -114,7 +115,7 @@ Order, in which modes are specified does not matter.
 
 #### fromstr
 
-Generate implementation of `FromStr` trait. 
+Generate implementation of `FromStr` trait.
 
 Not compatible with lifetime annotated structs.
 
@@ -144,23 +145,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-#### no_regex
+#### regex
 
-Makes format string behave as regular string (in contrast with being regular expression),
-by escaping all special regex characters.
+Makes format string behave as regular expression
+by turning off escaping of all special regex characters.
 
 ```rust
 use reformation::Reformation;
 
 #[derive(Reformation, Debug)]
-#[reformation("Vec{{{x}, {y}}}", no_regex=true)]
+#[reformation(r"Vec\{{{x}, *{y}\}}", regex=true)]
 struct Vec{
     x: i32,
     y: i32,
 }
 
 fn main(){
-    let v= Vec::parse("Vec{-1, 1}").unwrap();
+    let v = Vec::parse("Vec{-1,    1}").unwrap();
     assert_eq!(v.x, -1);
     assert_eq!(v.y, 1);
 }
@@ -171,11 +172,12 @@ fn main(){
 Allow arbitrary number of spaces after separators: ',', ';', ':'. For separator to be recognized
 as slack, it must be followed by at least one space in format string.
 
+
 ```rust
 use reformation::Reformation;
 
 #[derive(Reformation, Debug)]
-#[reformation(r"Vec\{{{x}, {y}\}}", slack=true)]
+#[reformation(r"Vec{{{x}, {y}}}", slack=true)]
 struct Vec{
     x: i32,
     y: i32,

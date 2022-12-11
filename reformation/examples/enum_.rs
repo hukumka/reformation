@@ -6,7 +6,7 @@ enum Color {
     Red,
     #[reformation("green")]
     Green,
-    #[reformation(r"grey\({}\)")]
+    #[reformation(r"grey({})")]
     Grey(i32),
     #[reformation("yellow")]
     Yellow,
@@ -15,7 +15,7 @@ enum Color {
 }
 
 #[derive(Reformation, Debug, PartialEq)]
-#[reformation(no_regex = true)]
+#[reformation()]
 enum Superman {
     #[reformation("Bird({})")]
     Bird(f32),
@@ -24,7 +24,7 @@ enum Superman {
 }
 
 #[derive(Reformation, Debug, PartialEq)]
-#[reformation(no_regex = true, slack = true)]
+#[reformation(slack = true)]
 enum MiniList {
     #[reformation("[]")]
     Zero,
