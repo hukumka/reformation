@@ -1,7 +1,7 @@
 use crate::syn_helpers::expr_bool_lit;
 use lazy_static::lazy_static;
 use proc_macro2::Span;
-use regex::Regex;
+use regex::{escape, Regex};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{AttrStyle, Attribute, Expr, Ident, Lit};
@@ -24,7 +24,7 @@ impl ReformationAttribute {
             regex_string: None,
             slack: false,
             no_regex: false,
-            fromstr: false
+            fromstr: false,
         }
     }
 
@@ -45,7 +45,7 @@ impl ReformationAttribute {
     pub fn substr_mode(&self) -> impl Fn(&str) -> String + '_ {
         move |s| {
             let s = if self.no_regex {
-                escape_regex(s)
+                escape(s)
             } else {
                 no_capturing_groups(s)
             };
@@ -143,7 +143,7 @@ impl ReformationAttribute {
             Mode::Str(s) => {
                 self.regex_string = Some(s);
                 Ok(())
-            },
+            }
         }
     }
 }
@@ -186,13 +186,6 @@ fn no_capturing_groups(input: &str) -> String {
         prev = Some(c);
     }
     res
-}
-
-fn escape_regex(input: &str) -> String {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(r"[\|\[\]\(\)\{\}\.\?\+\*\^\\]").unwrap();
-    }
-    RE.replace_all(input, r"\$0").to_string()
 }
 
 fn slack(input: &str) -> String {
