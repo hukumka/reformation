@@ -181,11 +181,21 @@ fn test_default() {
 }
 
 #[derive(Reformation, Debug, PartialEq)]
-#[reformation("{}:{}:{}", fromstr=true)]
+#[reformation("{}:{}:{}", fromstr = true)]
 struct Time(i32, i32, i32);
 
 #[test]
 fn test_fromstr() {
     let x: Time = "1:2:3".parse().unwrap();
     assert_eq!(x, Time(1, 2, 3));
+}
+
+#[derive(Reformation, Debug, PartialEq)]
+#[reformation("$", no_regex = true)]
+struct Dollar;
+
+#[test]
+fn test_dollar() {
+    let x = Dollar::parse("$").unwrap();
+    assert_eq!(x, Dollar);
 }
