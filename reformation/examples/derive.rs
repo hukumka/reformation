@@ -10,11 +10,20 @@ struct Vec {
     z: f32,
 }
 
+// By default, regular expression items are escaped
+#[derive(Debug, Reformation)]
+#[reformation(r"(\|)({left_eye}_{right_eye})(|/)")]
+struct Crab {
+    left_eye: String,
+    right_eye: String,
+}
+
+// But regular expressions can be enabled by providing `regex=true` attribute
 // note that capture group (,|;) is replaced with non-capturing (:?,|;) in order
 // to avoid accidental break of expression. Note that named capture groups
 // (?P<name>expr) will still cause logical error and hopefully panic.
 #[derive(Debug, Reformation)]
-#[reformation(r"Rect\{{{a}(,|;)\s+{b}\}}")]
+#[reformation(r"Rect\{{{a}(,|;)\s+{b}\}}", regex = true)]
 struct Rect {
     a: Vec,
     b: Vec,
@@ -22,15 +31,6 @@ struct Rect {
     // Note what zero does not appear in format string, but
     // initialized from `Default` trait implementation
     zero: usize,
-}
-
-// One may choose to use plain format syntax (with no regular expressions)
-// by providing `no_regex=true` mode
-#[derive(Debug, Reformation)]
-#[reformation(r"(\|)({left_eye}_{right_eye})(|/)", no_regex = true)]
-struct Crab {
-    left_eye: String,
-    right_eye: String,
 }
 
 #[derive(Debug, Reformation)]

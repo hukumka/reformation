@@ -1,7 +1,7 @@
 use reformation::{Error, ParseOverride, Reformation};
 
 #[derive(Debug, Reformation, PartialEq)]
-#[reformation(r"Vec\{{{x}, {y}, {z}\}}", slack = true)]
+#[reformation(r"Vec{{{x}, {y}, {z}}}", slack = true)]
 struct Vect {
     x: f32,
     y: f32,
@@ -23,7 +23,7 @@ fn test_vec() {
 // to avoid accidental break of expression. Note that named capture groups
 // (?P<name>expr) will still cause logical error and hopefully panic.
 #[derive(Debug, Reformation, PartialEq)]
-#[reformation(r"Rect\{{{a}(,|;)\s+{b}\}}")]
+#[reformation(r"Rect\{{{a}(,|;)\s+{b}\}}", regex = true)]
 struct Rect {
     a: Vect,
     b: Vect,
@@ -118,10 +118,10 @@ fn test_generic() {
 #[derive(Reformation, PartialEq, Debug)]
 #[reformation("{a} {b}")]
 struct Override {
-    #[reformation(r".")]
+    #[reformation(r".", regex = true)]
     a: i32,
 
-    #[reformation(r"\d( \d)*")]
+    #[reformation(r"\d( \d)*", regex = true)]
     b: VecWrapper,
 }
 
@@ -191,7 +191,7 @@ fn test_fromstr() {
 }
 
 #[derive(Reformation, Debug, PartialEq)]
-#[reformation("$", no_regex = true)]
+#[reformation("$")]
 struct Dollar;
 
 #[test]

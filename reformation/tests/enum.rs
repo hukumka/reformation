@@ -12,7 +12,7 @@ enum A {
 enum B {
     #[reformation("{}")]
     One(u8),
-    #[reformation("{}..{}", no_regex = true)]
+    #[reformation("{}..{}")]
     Pair(u8, u8),
 
     // variant that cannot be produced by parse function
@@ -41,8 +41,7 @@ fn test_enum_separation() -> Result<(), reformation::Error> {
 }
 
 #[derive(Reformation)]
-#[reformation(no_regex=true)]
-enum LifetimeInEnum<'a>{
+enum LifetimeInEnum<'a> {
     #[reformation("A")]
     A,
     #[reformation("B({})")]
@@ -50,8 +49,5 @@ enum LifetimeInEnum<'a>{
     #[reformation("C({})")]
     C(&'a str),
     #[reformation("D({_value})")]
-    D {
-        _value: &'a str
-    },
+    D { _value: &'a str },
 }
-

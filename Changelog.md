@@ -1,3 +1,10 @@
+## 0.6
+Features:
++ Make no_regex default, and instead expose attribute regex
+
+Fixes:
++ Fix no_regex $ escaping
+
 ### 0.5.3
 + Implement `Error` trait for `reformation::Error`. (credit: nertpinx)
 
